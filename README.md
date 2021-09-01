@@ -1,72 +1,60 @@
-# MicroYaml
-A simple parser for the MicroYaml dialect of the [YAML](http://www.yaml.org/) file format. Distributed as a CodeBit.
+# FileMeta.Yaml
+A simple [YAML](http://www.yaml.org/) scanner/reader/parser.
 
-MicroYaml is part of the [FileMeta](http://www.filemeta.org) project because it offers a
-simple and convenient way to embed structured metadata in convenient locations such as
-comments in source code or to add custom metadata fields in the "comments" metadata field
-of formats like .mp3.
+FileMeta.Yaml is a YAML reader written in C# that can manifest the following interfaces:
 
-## About CodeBit
+* System.Collections.IEnumerable<KeyValuePair<string,string>>
+* NewtonSoft.Json.JsonReader
+* System.Xml.XmlReader
+
+This parser does not implement the full [YAML 1.1](http://yaml.org/spec/1.1/) specification. It matches the [StrictYAML](https://hitchdev.com/strictyaml/) limitations plus a few more. For details, see the [Limitations](#Limitations) section below.
+
+## About CodeBits
+
 A CodeBit is a way to share common code that's lighter weight than NuGet. CodeBits are contained in one source code file. A structured comment at the beginning of the file indicates where to find the master copy so that automated tools can retrieve and update CodeBits to the latest version. For more information see http://FileMeta.org/CodeBit.html.
 
-This project is the official distribution vehicle for the **MicroYamlReader.cs** CodeBit.
+## Why YAML?
 
-## The MicroYaml Dialect
-MicroYaml is a proper subset of YAML. MicroYaml documents consist of one "mapping" or set
-of key-value pairs. Keys and values may be in "Simple" or "Block" format with Plain,
-"Double-Quoted", and 'Single-Quoted' styles.
+YAML is a simple and intuitive format where newlines and indentation are significant to the parser just as they are to the writer. Most people encountering YAML can successfully add or edit information without needing to learn the syntax and without creating syntax errors.
+
+[YAML](http://www.yaml.org/) is a convenient format for human-written metadata such as that used for [CodeBits](http://FileMeta.org/CodeBit.html).
 
 Here's a sample:
 ```yml
-# This MicroYaml document expresses the five elements from the Dublin Core
+# This Yaml document expresses the five elements from the Dublin Core
 Title: The Hitchhiker's Guide to the Galaxy
 Creator: Douglas Adams
 Subject: "Fiction"
 Description: >
    The misadventures of Arthur Dent, the last surviving man following
-   demolition of Planet Earth by a Vogon constructor fleet to make way
-M   for a hyperspace bypass.
+demolition of Planet Earth by a Vogon constructor fleet to make way
+   for a hyperspace bypass.
 Date: 1979-07-15
 ```
 
-MicroYaml does not support lists, nested mappings, complex mapping keys, flow syntax,
-strong typing, or other advanced. YAML features. There is presently no plan to add
-these features. Those needing more structure than a simple mapping should consider
-[XML](http://www.w3.org/XML/), [JSON](http://www.json.org/) or a full YAML parser.
+## Limitations
 
-## Why YAML?
-YAML is a simple and intuitive format where newlines and indentation are significant to
-the parser just as they are to the writer. Most people encountering YAML can successfully
-add or edit information without needing to learn the syntax and without creating syntax
-errors.
+FileMeta.Yaml has the following exceptions to the [official YAML 1.1](http://yaml.org/spec/1.1/) that are expected to be retained perpetually. They include all of the limitations of [StrictYAML](https://hitchdev.com/strictyaml/) plus a few more.
 
-## Why MicroYaml?
-While YAML starts out simple, some of the constructs, like Complex Mapping Keys, Compound
-Values, and embedded JSON can make it more challenging. Humans may not understand what's
-going on and parsers have to produce a complicated DOM to represent the document. In
-contrast, MicroYaml keeps things simple and parses to a flat set of key-value pairs.
+* No implicit or explicit type conversion. All data are parsed as strings. This prevents the [Norway Problem](https://hitchdev.com/strictyaml/why/implicit-typing-removed/), loss of leading zeros, conversion of version numbers to float and a host of other unexpected outcomes. Type conversion should be performed by the FileMeta.json client. (StrictYAML prohibits implicit conversion but includes explicit).
+* No direct representations of objects (no Node Tags). See the [StrictYAML reasoning](https://hitchdev.com/strictyaml/why/binary-data-removed)) for this.
+* No node anchors or references. They can be confusing to non-programmers. Plus they risk unintended side effects when a naive user edits the data. (StrictYAML has the [same limitation](https://hitchdev.com/strictyaml/why/node-anchors-and-references-removed/))
+* No explicit keys (see [YAML 1.1 section 10.2.1](http://yaml.org/spec/1.1/#simple%20key/)). Keys have no identifying mark, they consist of a simple sequence of characters, and they are limited to one line unless surrounded by double quotes.
 
-## Using this MicroYaml parser
-This project consists of two source code files:
-* **MicroYamlReader.cs** is a self-contained parser suitable for incorporation into a
-C# project. Documentation is embedded in the file using triple-slash format.
-* **Program.cs** is a set of regression tests for the parser.
+The following limitations may be removed in the future if people advocate for the features or submit a clean pull request.
 
-Here is sample source code to get you started:
-```cs
-Dictionary<string, string> yamlDoc = new Dictionary<string, string>();
-var options = new Yaml.YamlReaderOptions();
-options.MergeDocuments = true;
-using (var reader = new StreamReader("MyYamlFile.yml"))
-{
-   using (var yamlReader = new Yaml.MicroYamlReader(reader, options))
-   {
-      yamlReader.CopyTo(yamlDoc);
-   }
-}
-```
+* No directives. You cannot use %YAML to specify the version. or %TAG to create key shorthand.
+* No flow style. [YAML 1.2](http://yaml.org/spec/1.2/) allows you to use JSON syntax within a YAML document. This limitation _may_ be removed in the future. However, there are [arguments against it](https://hitchdev.com/strictyaml/why/flow-style-removed/)
 
-## Extended MicroYaml Sample
+### Why the limitations?
+While YAML starts out simple, some of the constructs, like Complex Mapping Keys, Compound Values, and embedded JSON can make it more challenging. Humans may not understand what's going on and parsers have to produce a complicated DOM to represent the document.
+
+These limitations are intended to keep YAML simple and intuitive for users who have never read the documentation.
+
+## Using FileMeta.Yaml MicroYaml parser
+(Sample code pending)
+
+## Extended YAML Sample
 This sample demonstrates most MicroYaml features.
 
 ```yml
