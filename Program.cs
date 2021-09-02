@@ -8,8 +8,9 @@ Filename: Program.cs
 using System;
 using System.Collections.Generic;
 using System.IO;
+using FileMeta.Yaml;
 
-namespace Yaml
+namespace UnitTests
 {
     class Program
     {
@@ -89,7 +90,7 @@ namespace Yaml
         {
             bool success = true;
 
-            Yaml.MicroYamlReader reader = null;
+            MicroYamlReader reader = null;
             IEnumerator<KeyValuePair<string, string>> comp = null;
             try
             {

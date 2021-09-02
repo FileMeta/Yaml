@@ -52,9 +52,12 @@ using System.Collections;
 using System.Diagnostics;
 using System.Text;
 using System.IO;
+using System.Linq;
 
-namespace Yaml
+namespace FileMeta.Yaml
 {
+    using YamlInternal;
+
     /// <summary>
     /// Expresses options for MicroYaml readers
     /// </summary>
@@ -226,7 +229,7 @@ namespace Yaml
         /// <param name="options">YamlReaderOptions to use when parsing. Null for default.</param>
         /// <param name="map">The collection into which the contents will be loaded.</param>
         /// <returns>The number of key-value pairs loaded into the document.</returns>
-        static public int Load(TextReader reader, YamlReaderOptions options, ICollection<KeyValuePair<string, string> > map)
+        static public int Load(TextReader reader, YamlReaderOptions options, ICollection<KeyValuePair<string, string>> map)
         {
             using (var r = new MicroYamlReader(reader, options))
             {
@@ -244,40 +247,14 @@ namespace Yaml
     /// <seealso cref="MicroYaml"/>
     class MicroYamlReader : IEnumerator<KeyValuePair<string, string>>
     {
-        private enum TokenType
-        {
-            Null,          // No token (yet)
-            Scalar,        // A string (typically a key or a value)
-            KeyPrefix,     // The '? ' sequence indicating a subsequent key (optional)
-            ValuePrefix,   // The ': ' sequence indicating a subsequent value (optional)
-            BeginDoc,      // A line containing exclusively '---'
-            EndDoc,        // A line containing exclusively '...' 
-            EOF            // End of the file 
-        }
-
-        TextReader m_reader;
-        YamlReaderOptions m_options;
+        YamlReaderOptions m_options; // TODO: Evaluate which options belong here and which in the lexer
         KeyValuePair<string, string> m_current;
-        string m_immediateError;
-
-        // Current Token
-        TokenType m_tokenType;
-        string m_token;
+        YamlLexer m_lexer;
 
         public MicroYamlReader(TextReader reader, YamlReaderOptions options = null)
         {
-            m_reader = reader;
-            if (options == null)
-            {
-                m_options = new YamlReaderOptions();
-            }
-            else
-            {
-                m_options = options.Clone();
-            }
-            m_tokenType = TokenType.Null;
-            m_token = null;
-            ChInit();
+            m_options = options;
+            m_lexer = new YamlLexer(reader, options);
         }
 
         public KeyValuePair<string, string> Current
@@ -298,51 +275,45 @@ namespace Yaml
 
         public void Dispose()
         {
-            if (m_reader != null && m_options.CloseInput)
+            if (m_lexer != null)
             {
-                m_reader.Dispose();
+                m_lexer.Dispose();
             }
-            m_reader = null;
-            m_current = new KeyValuePair<string, string>(null, null);
+            m_lexer = null;
+            m_current = new KeyValuePair<string, string>();
         }
 
-        public void Reset()
-        {
-            throw new InvalidOperationException("MicroYamlReader is read-once. It cannot be reset.");
-        }
+        public string ImmediateError => m_lexer.ImmediateError;
 
-        /// <summary>
-        /// Read the next key/value pair from the inbound stream.
-        /// </summary>
-        /// <returns>True if successful. False if end of document.</returns>
         public bool MoveNext()
         {
-            ClearError();
+            m_lexer.ClearError();
 
             // If beginning of stream, move to next document
-            if (m_tokenType == TokenType.Null)
+            if (m_lexer.TokenType == TokenType.Null)
             {
                 MoveNextDocument();
             }
 
-            // Upon entry, the current token is the NEXT one to be processed and we're looking for a key.
+            // The current token in the Lexer is the NEXT one to be processed.
+            // We're looking for a key.
 
             // === Keep trying until we have obtained a key.
             string key = null;
             do
             {
-                switch (m_tokenType)
+                switch (m_lexer.TokenType)
                 {
                     case TokenType.Scalar:
-                        key = m_token;
-                        ReadToken();
+                        key = m_lexer.TokenValue;
+                        m_lexer.MoveNext();
                         break;
 
                     case TokenType.KeyPrefix:
-                        ReadToken();
-                        if (m_tokenType != TokenType.Scalar)
+                        m_lexer.MoveNext();
+                        if (m_lexer.TokenType != TokenType.Scalar)
                         {
-                            ReportError("Expected scalar value.");
+                            m_lexer.ReportError("Expected scalar value.");
                         }
                         // Loop back to process the next token
                         break;
@@ -372,85 +343,91 @@ namespace Yaml
             while (key == null);
 
             // Handle Expected ValuePrefix ': '
-            if (m_tokenType != TokenType.ValuePrefix)
+            if (m_lexer.TokenType != TokenType.ValuePrefix)
             {
-                ReportError("Expected value prefix ': '.");
+                m_lexer.ReportError("Expected value prefix ': '.");
                 m_current = new KeyValuePair<string, string>(key, string.Empty);
                 return true;
             }
-            ReadToken();
+            m_lexer.MoveNext();
 
-            if (m_tokenType != TokenType.Scalar)
+            if (m_lexer.TokenType != TokenType.Scalar)
             {
-                ReportError("Expected scalar.");
+                m_lexer.ReportError("Expected scalar.");
                 m_current = new KeyValuePair<string, string>(key, string.Empty);
                 return true;
             }
 
             // Return the key/value pair
-            m_current = new KeyValuePair<string, string>(key, m_token);
-            ReadToken();
+            m_current = new KeyValuePair<string, string>(key, m_lexer.TokenValue);
+            m_lexer.MoveNext();
             return true;
         }
 
+        /// <summary>
+        /// Moves to the beginning of the next document, using the YAML document markers.
+        /// </summary>
+        /// <returns>True if at the beginning of a document. False if there are no more documents.</returns>
+        /// <remarks>
+        /// This is sensitive to the <see cref="YamlReaderOptions"/> settings
+        /// <see cref="YamlReaderOptions.IgnoreTextOutsideDocumentMarkers"/> and
+        /// <see cref="YamlReaderOptions.MergeDocuments"/>.
+        /// </remarks>
         public bool MoveNextDocument()
         {
-            ClearError();
+            m_lexer.ClearError();
 
             // Clear the current value
             m_current = new KeyValuePair<string, string>();
 
             // Read the balance of the current document
-            while (m_tokenType != TokenType.Null && m_tokenType != TokenType.EOF && m_tokenType != TokenType.BeginDoc && m_tokenType != TokenType.EndDoc)
+            while (m_lexer.TokenType != TokenType.Null
+                && m_lexer.TokenType != TokenType.EOF
+                && m_lexer.TokenType != TokenType.BeginDoc
+                && m_lexer.TokenType != TokenType.EndDoc)
             {
-                ReadToken();
+                m_lexer.MoveNext();
             }
 
             // Optionally skip until the next BeginDoc token
-            if (m_options.IgnoreTextOutsideDocumentMarkers && (m_tokenType == TokenType.Null || m_tokenType == TokenType.EndDoc))
+            if (m_options.IgnoreTextOutsideDocumentMarkers
+                && (m_lexer.TokenType == TokenType.Null || m_lexer.TokenType == TokenType.EndDoc))
             {
-                if (!SkipUntilBeginDoc()) return false; // End of file
+                if (!m_lexer.SkipUntilBeginDoc()) return false; // End of file
             }
 
             // If we're at the beginning of the stream, read the next token
-            else if (m_tokenType == TokenType.Null)
+            else if (m_lexer.TokenType == TokenType.Null)
             {
-                ReadToken();
+                m_lexer.MoveNext();
             }
 
             // Consume an end document token, if present
-            else if (m_tokenType == TokenType.EndDoc)
+            else if (m_lexer.TokenType == TokenType.EndDoc)
             {
-                ReadToken();
-                if (m_tokenType != TokenType.BeginDoc && m_tokenType != TokenType.EOF)
+                m_lexer.MoveNext();
+                if (m_lexer.TokenType != TokenType.BeginDoc
+                    && m_lexer.TokenType != TokenType.EOF)
                 {
-                    ReportError("Unexpected text found after end document marker.");
+                    m_lexer.ReportError("Unexpected text found after end document marker.");
                     return false;
                 }
             }
 
             // If on a begin document token, read the next one to kick things off
-            if (m_tokenType == TokenType.BeginDoc) ReadToken();
+            if (m_lexer.TokenType == TokenType.BeginDoc)
+            {
+                m_lexer.MoveNext();
+            }
 
             // Return true if there's something more in the document
-            return (m_tokenType != TokenType.EOF);
+            return (m_lexer.TokenType != TokenType.EOF);
         }
 
-        /// <summary>
-        /// Gets an error that occurred on the most recent <see cref="MoveNext"/> or <see cref="MoveNextDocument"/> 
-        /// </summary>
-        /// <remarks>
-        /// Value is null if no error occurred.
-        /// </remarks>
-        public string ImmediateError
-        {
-            get { return m_immediateError; }
-        }
-
-        public int CopyTo(ICollection<KeyValuePair<string, string> > map)
+        public int CopyTo(ICollection<KeyValuePair<string, string>> map)
         {
             int i = 0;
-            while(MoveNext())
+            while (MoveNext())
             {
                 map.Add(Current);
                 ++i;
@@ -458,9 +435,60 @@ namespace Yaml
             return i;
         }
 
-        #region Parser / Scanner
+        public void Reset()
+        {
+            throw new InvalidOperationException("MicroYamlReader is read-once. It cannot be reset.");
+        }
 
-        private void ReadToken()
+    }
+}
+
+namespace YamlInternal
+{
+    using FileMeta.Yaml;
+
+    internal enum TokenType
+    {
+        Null,          // No token (yet)
+        Scalar,        // A string (typically a key or a value)
+        KeyPrefix,     // The '? ' sequence indicating a subsequent key (optional)
+        ValuePrefix,   // The ': ' sequence indicating a subsequent value (optional)
+        BeginDoc,      // A line containing exclusively '---'
+        EndDoc,        // A line containing exclusively '...' 
+        EOF            // End of the file 
+    }
+
+
+    internal class YamlLexer : IDisposable
+    {
+        TextReader m_reader;
+        YamlReaderOptions m_options;
+
+        // Current Token
+        TokenType m_tokenType;
+        string m_token;
+
+        public YamlLexer(TextReader reader, YamlReaderOptions options = null)
+        {
+            m_reader = reader;
+            if (options == null)
+            {
+                m_options = new YamlReaderOptions();
+            }
+            else
+            {
+                m_options = options.Clone();
+            }
+            m_tokenType = TokenType.Null;
+            m_token = null;
+            ChInit();
+        }
+
+        public TokenType TokenType => m_tokenType;
+
+        public string TokenValue => m_token;
+
+        public void MoveNext()
         {
             // Keep trying until we successfully read a token
             m_tokenType = TokenType.Null;
@@ -536,7 +564,7 @@ namespace Yaml
             }
         }
 
-        private bool SkipUntilBeginDoc()
+        public bool SkipUntilBeginDoc()
         {
             if (SkipUntilMatch("\n---\n"))
             {
@@ -550,6 +578,8 @@ namespace Yaml
                 return false;
             }
         }
+
+        #region Parser / Scanner
 
         private void SkipBalanceOfLine()
         {
@@ -660,7 +690,7 @@ namespace Yaml
             ch = ChPeek();
             if (ch != '#' && ch != '\n')
             {
-                ReportError("Expected comment or newline.");
+                //ReportError("Expected comment or newline.");
             }
             SkipBalanceOfLine();
             ChRead();   // Read the newline
@@ -959,7 +989,7 @@ namespace Yaml
                 return (char)ch;
             }
 
-            // Per HTML5 convert '\0'
+            // Per HTML5 convert '\0' (Yes, this is YAML but we're following the HTML spec on this one.)
             if (ch == 0)
             {
                 return '\xFFFD';
@@ -1043,15 +1073,54 @@ namespace Yaml
 
         #endregion
 
-        private void ClearError()
+        #region Error Handling
+
+        // Error handling methods are public because the owning reader/parser classes
+        // also use it to report errors.
+
+        string m_immediateError;
+
+        /// <summary>
+        /// Gets an error that occurred on the most recent <see cref="MoveNext"/> or <see cref="MoveNextDocument"/> 
+        /// </summary>
+        /// <remarks>
+        /// Value is null if no error occurred.
+        /// </remarks>
+        public string ImmediateError
+        {
+            get { return m_immediateError; }
+        }
+
+        public void ClearError()
         {
             m_immediateError = null;
         }
 
-        private void ReportError(string msg, params object[] args)
+        public void ReportError(string msg)
         {
-            m_immediateError = string.Format(msg, args);
+            m_immediateError = msg;
         }
+
+        #endregion
+
+        #region IDisposable
+
+        public void Dispose()
+        {
+            m_tokenType = TokenType.EndDoc;
+            m_token = string.Empty;
+            if (m_reader != null)
+            {
+                if (m_options.CloseInput)
+                {
+                    m_reader.Dispose();
+                }
+                m_reader = null;
+            }
+        }
+
+        #endregion
+
     }
 
 }
