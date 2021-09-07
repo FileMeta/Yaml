@@ -142,9 +142,9 @@ namespace UnitTests
 
                     Trace("(\"{0}\", \"{1}\")", EscapeString(reader.Current.Key), EscapeString(reader.Current.Value));
 
-                    if (reader.ImmediateError != null)
+                    if (reader.ErrorOccurred)
                     {
-                        ReportError(reader.ImmediateError);
+                        ReportError(reader.Errors[0].FullMessage);
                         success = false;
                     }
 

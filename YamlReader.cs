@@ -283,12 +283,12 @@ namespace FileMeta.Yaml
             m_current = new KeyValuePair<string, string>();
         }
 
-        public string ImmediateError => m_lexer.ImmediateError;
+        public bool ErrorOccurred => m_lexer.ErrorOccurred;
+
+        public IReadOnlyList<YamlReaderException> Errors => m_lexer.Errors;
 
         public bool MoveNext()
         {
-            m_lexer.ClearError();
-
             // If beginning of stream, move to next document
             if (m_lexer.TokenType == TokenType.Null)
             {
@@ -375,8 +375,6 @@ namespace FileMeta.Yaml
         /// </remarks>
         public bool MoveNextDocument()
         {
-            m_lexer.ClearError();
-
             // Clear the current value
             m_current = new KeyValuePair<string, string>();
 
@@ -441,6 +439,38 @@ namespace FileMeta.Yaml
         }
 
     }
+
+    class YamlReaderException : Exception
+    {
+        /// <summary>
+        /// Constructs a <see cref="YamlReaderException"/>
+        /// </summary>
+        /// <param name="lineNumber">The line on which the error occurred.</param>
+        /// <param name="linePosition">The character offset on which the error occurred.</param>
+        /// <param name="message">The error message.</param>
+        public YamlReaderException(int lineNumber, int linePosition, string message)
+            : base(message)
+        {
+            LineNumber = lineNumber;
+            LinePosition = linePosition;
+        }
+        
+        /// <summary>
+        /// The line on which the error occurred
+        /// </summary>
+        public int LineNumber { get; private set; }
+
+        /// <summary>
+        /// The character offset on which the error occurred
+        /// </summary>
+        public int LinePosition { get; private set; }
+
+        /// <summary>
+        /// Returns the full error message including the line and character offset at
+        /// which the error occurred.
+        /// </summary>
+        public string FullMessage => $"Yaml({LineNumber},{LinePosition}): {Message}";
+    }
 }
 
 namespace YamlInternal
@@ -467,6 +497,8 @@ namespace YamlInternal
         // Current Token
         TokenType m_tokenType;
         string m_token;
+
+        #region Public Interface
 
         public YamlLexer(TextReader reader, YamlReaderOptions options = null)
         {
@@ -578,6 +610,8 @@ namespace YamlInternal
                 return false;
             }
         }
+
+        #endregion Public
 
         #region Parser / Scanner
 
@@ -940,11 +974,16 @@ namespace YamlInternal
         */
 
         private Stack<char> m_readBuf = new Stack<char>();
+        private int m_lineNum;
+        private int m_linePos;
+        private int[] m_lineLengths = new int[4]; // We never go backward more than three line lengths.
 
         void ChInit()
         {
             m_readBuf.Clear();
             m_readBuf.Push('\n');
+            m_lineNum = 0;
+            m_linePos = 0;
         }
 
         char ChPeek()
@@ -961,48 +1000,67 @@ namespace YamlInternal
 
         char ChRead()
         {
+            int ch;
+
             if (m_readBuf.Count > 0)
             {
-                return m_readBuf.Pop();
+                ch = m_readBuf.Pop();
             }
-
-            int ch = m_reader.Read();
-
-            // Normalize newlines according to HTML5 standards
-            if (ch == '\r')
+            else
             {
-                if (m_reader.Peek() == (int)'\n')
+                ch = m_reader.Read();
+
+                // Normalize newlines according to HTML5 standards (even though this is YAML)
+                if (ch == '\r')
                 {
-                    // Suppress the CR in CRLF
-                    ch = (char)m_reader.Read();
-                }
-                else
-                {
-                    // Replace CR with LF
-                    ch = '\n';
+                    if (m_reader.Peek() == (int)'\n')
+                    {
+                        // Suppress the CR in CRLF
+                        ch = m_reader.Read();
+                    }
+                    else
+                    {
+                        // Replace CR with LF
+                        ch = '\n';
+                    }
                 }
             }
 
             // Return the value
-            if (ch > 0)
+            if (ch < 0)
             {
-                return (char)ch;
+                return '\0'; // EOF
             }
-
-            // Per HTML5 convert '\0' (Yes, this is YAML but we're following the HTML spec on this one.)
-            if (ch == 0)
+            else if (ch == 0)
             {
-                return '\xFFFD';
+                return '\xFFFD'; // Per HTML5 convert '\0' (Yes, this is YAML but we're following the HTML spec on this one.)
             }
-
-            // EOF
-            return '\0';
+            else if (ch == (int)'\n')
+            {
+                m_lineLengths[m_lineNum & 0x0003] = m_linePos;   // Mod 4.
+                ++m_lineNum;
+                m_linePos = 1;
+            }
+            else
+            {
+                ++m_linePos;
+            }
+            return (char)ch;
         }
 
         void ChUnread(char ch)
         {
             Debug.Assert(ch != '\0');
             m_readBuf.Push(ch);
+            if (ch == '\n')
+            {
+                --m_lineNum;
+                m_linePos = m_lineLengths[m_lineNum & 0x0003]; // x & 0x3 is equivalent to mod 4.
+            }
+            else if (m_linePos > 0)
+            {
+                --m_linePos;
+            }
         }
 
         /// <summary>
@@ -1078,28 +1136,40 @@ namespace YamlInternal
         // Error handling methods are public because the owning reader/parser classes
         // also use it to report errors.
 
-        string m_immediateError;
+        List<YamlReaderException> m_errors = null;
 
         /// <summary>
-        /// Gets an error that occurred on the most recent <see cref="MoveNext"/> or <see cref="MoveNextDocument"/> 
+        /// If true, an exception will be thrown whenever an error is detected. Otherwise,
+        /// errors are accumulated and reported later.
         /// </summary>
-        /// <remarks>
-        /// Value is null if no error occurred.
-        /// </remarks>
-        public string ImmediateError
-        {
-            get { return m_immediateError; }
-        }
+        public bool ThrowOnError = false;
 
-        public void ClearError()
-        {
-            m_immediateError = null;
-        }
-
+        /// <summary>
+        /// Report an error in the YamlLexer or a parser that depends on YamlLexer
+        /// </summary>
+        /// <param name="msg"></param>
         public void ReportError(string msg)
         {
-            m_immediateError = msg;
+            var err = new YamlReaderException(m_lineNum, m_linePos, msg);
+
+            if (m_errors == null)
+            {
+                m_errors = new List<YamlReaderException>();
+            }
+            m_errors.Add(err);
+
+            if (ThrowOnError) throw err;
         }
+
+        /// <summary>
+        /// True if any error occurred during Lexing/Parsing
+        /// </summary>
+        public bool ErrorOccurred => (m_errors != null);
+
+        /// <summary>
+        /// List of all errors that occurred during Lexing/Parsing
+        /// </summary>
+        public IReadOnlyList<YamlReaderException> Errors => m_errors;
 
         #endregion
 
