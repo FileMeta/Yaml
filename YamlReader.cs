@@ -118,6 +118,12 @@ namespace FileMeta.Yaml
         /// </remarks>
         public bool MergeDocuments { get; set; }
 
+        /// <summary>
+        /// If true, the parser or reader will thrown a <see cref="YamlReaderException"/> when a
+        /// syntax error is encountered. If false, you must check for errors on the reader.
+        /// </summary>
+        public bool ThrowOnError { get; set; }
+
         public YamlReaderOptions Clone()
         {
             return (YamlReaderOptions)MemberwiseClone();
@@ -253,8 +259,11 @@ namespace FileMeta.Yaml
 
         public MicroYamlReader(TextReader reader, YamlReaderOptions options = null)
         {
-            m_options = options;
-            m_lexer = new YamlLexer(reader, options);
+            m_options = options.Clone();
+            m_lexer = new YamlLexer(reader);
+            m_lexer.CloseInput = options.CloseInput;
+            m_lexer.SkipNonDocumentContent = options.IgnoreTextOutsideDocumentMarkers;
+            m_lexer.ThrowOnError = options.ThrowOnError;
         }
 
         public KeyValuePair<string, string> Current
@@ -440,6 +449,30 @@ namespace FileMeta.Yaml
 
     }
 
+    // TODO: This will be an implementation of JSON.Net JsonReader
+    class YamlJsonReader
+    {
+        #region Nested Classes
+
+        // Collection Stack
+        Stack<Collection> m_mollectionStack = new Stack<Collection>();
+
+        enum CollectionType
+        {
+            Mapping = 1,
+            Sequence = 2
+        }
+
+        // Used in the collection stack
+        class Collection
+        {
+            public CollectionType Type;
+            public int Indentation;
+        }
+
+        #endregion Nested Classes
+    }
+
     class YamlReaderException : Exception
     {
         /// <summary>
@@ -481,18 +514,17 @@ namespace YamlInternal
     {
         Null,          // No token (yet)
         Scalar,        // A string (typically a key or a value)
-        KeyPrefix,     // The '? ' sequence indicating a subsequent key (optional)
-        ValuePrefix,   // The ': ' sequence indicating a subsequent value (optional)
+        KeyPrefix,     // The '? ' string indicating a subsequent key (optional)
+        ValuePrefix,   // The ': ' string indicating a subsequent value
+        SequenceIndicator, // The '- ' string indicating a sequence entry
         BeginDoc,      // A line containing exclusively '---'
-        EndDoc,        // A line containing exclusively '...' 
+        EndDoc,        // A line containing exclusively '...'
         EOF            // End of the file 
     }
-
 
     internal class YamlLexer : IDisposable
     {
         TextReader m_reader;
-        YamlReaderOptions m_options;
 
         // Current Token
         TokenType m_tokenType;
@@ -500,25 +532,39 @@ namespace YamlInternal
 
         #region Public Interface
 
-        public YamlLexer(TextReader reader, YamlReaderOptions options = null)
+        public YamlLexer(TextReader reader)
         {
+            ThrowOnError = true;
+            CloseInput = true;
+            SkipNonDocumentContent = true;
+
             m_reader = reader;
-            if (options == null)
-            {
-                m_options = new YamlReaderOptions();
-            }
-            else
-            {
-                m_options = options.Clone();
-            }
             m_tokenType = TokenType.Null;
             m_token = null;
             ChInit();
         }
 
+        /// <summary>
+        /// If true, an exception will be thrown whenever an error is detected. Otherwise,
+        /// errors are accumulated and reported later.
+        /// </summary>
+        public bool ThrowOnError = false;
+
+        /// <summary>
+        /// If true, the <see cref="TextReader"/> will be closed when this is disposed.
+        /// </summary>
+        public bool CloseInput = false;
+
+        /// <summary>
+        /// If true, all content outside document start/end delimiters will be ignored.
+        /// </summary>
+        public bool SkipNonDocumentContent = false;
+
         public TokenType TokenType => m_tokenType;
 
         public string TokenValue => m_token;
+
+        public int Indentation => m_lineIndent;
 
         public void MoveNext()
         {
@@ -584,6 +630,12 @@ namespace YamlInternal
                 else if (ReadMatch(": ")) // value prefix
                 {
                     m_tokenType = TokenType.ValuePrefix;
+                    return;
+                }
+
+                else if (ReadMatch("- ")) // Sequence entry prefix
+                {
+                    m_tokenType = TokenType.SequenceIndicator;
                     return;
                 }
 
@@ -1154,12 +1206,6 @@ namespace YamlInternal
         List<YamlReaderException> m_errors = null;
 
         /// <summary>
-        /// If true, an exception will be thrown whenever an error is detected. Otherwise,
-        /// errors are accumulated and reported later.
-        /// </summary>
-        public bool ThrowOnError = false;
-
-        /// <summary>
         /// Report an error in the YamlLexer or a parser that depends on YamlLexer
         /// </summary>
         /// <param name="msg"></param>
@@ -1196,7 +1242,7 @@ namespace YamlInternal
             m_token = string.Empty;
             if (m_reader != null)
             {
-                if (m_options.CloseInput)
+                if (CloseInput)
                 {
                     m_reader.Dispose();
                 }
@@ -1205,7 +1251,6 @@ namespace YamlInternal
         }
 
         #endregion
-
     }
 
 }
