@@ -724,7 +724,7 @@ namespace YamlInternal
             ch = ChPeek();
             if (ch != '#' && ch != '\n')
             {
-                //ReportError("Expected comment or newline.");
+                ReportError("Expected comment or newline.");
             }
             SkipBalanceOfLine();
             ChRead();   // Read the newline
@@ -761,7 +761,7 @@ namespace YamlInternal
 
                     // Read up to indent spaces in the following line
                     int nextIndent;
-                    for (nextIndent=0; nextIndent< indent; ++nextIndent)
+                    for (nextIndent = 0; nextIndent < indent; ++nextIndent)
                     {
                         ch = ChPeek();
                         if (ch != ' ' && ch != '\t') break;
@@ -977,6 +977,8 @@ namespace YamlInternal
         private int m_lineNum;
         private int m_linePos;
         private int[] m_lineLengths = new int[4]; // We never go backward more than three line lengths.
+        private int m_lineIndent;
+        private int[] m_lineIndents = new int[4];
 
         void ChInit()
         {
@@ -984,6 +986,7 @@ namespace YamlInternal
             m_readBuf.Push('\n');
             m_lineNum = 0;
             m_linePos = 0;
+            m_lineIndent = 0;
         }
 
         char ChPeek()
@@ -1026,20 +1029,29 @@ namespace YamlInternal
                 }
             }
 
+            // Per HTML5 convert '\0' (Yes, this is YAML but we're following the HTML spec on this one.)
+            if (ch == 0)
+            {
+                ch = '\xFFFD';
+            }
+
             // Return the value
             if (ch < 0)
             {
                 return '\0'; // EOF
             }
-            else if (ch == 0)
-            {
-                return '\xFFFD'; // Per HTML5 convert '\0' (Yes, this is YAML but we're following the HTML spec on this one.)
-            }
             else if (ch == (int)'\n')
             {
-                m_lineLengths[m_lineNum & 0x0003] = m_linePos;   // Mod 4.
+                m_lineLengths[m_lineNum & 0x0003] = m_linePos;  // x & 0x03 is equivalent to mod 4.
+                m_lineIndents[m_lineNum & 0x0003] = m_lineIndent;
                 ++m_lineNum;
-                m_linePos = 1;
+                m_linePos = 0;
+                m_lineIndent = 0;
+            }
+            else if (m_lineIndent == m_linePos && (ch == ' ' || ch == '\t'))
+            {
+                ++m_lineIndent;
+                ++m_linePos;
             }
             else
             {
@@ -1055,10 +1067,13 @@ namespace YamlInternal
             if (ch == '\n')
             {
                 --m_lineNum;
-                m_linePos = m_lineLengths[m_lineNum & 0x0003]; // x & 0x3 is equivalent to mod 4.
+                m_linePos = m_lineLengths[m_lineNum & 0x0003]; // x & 0x03 is equivalent to mod 4.
+                m_lineIndent = m_lineLengths[m_lineNum & 0x0003];
             }
             else if (m_linePos > 0)
             {
+                if (m_lineIndent <= m_linePos)
+                    m_lineIndent = m_linePos - 1;
                 --m_linePos;
             }
         }
@@ -1150,7 +1165,7 @@ namespace YamlInternal
         /// <param name="msg"></param>
         public void ReportError(string msg)
         {
-            var err = new YamlReaderException(m_lineNum, m_linePos, msg);
+            var err = new YamlReaderException(m_lineNum, m_linePos+1, msg);
 
             if (m_errors == null)
             {
