@@ -260,10 +260,7 @@ namespace FileMeta.Yaml
         public MicroYamlReader(TextReader reader, YamlReaderOptions options = null)
         {
             m_options = options.Clone();
-            m_lexer = new YamlLexer(reader);
-            m_lexer.CloseInput = options.CloseInput;
-            m_lexer.SkipNonDocumentContent = options.IgnoreTextOutsideDocumentMarkers;
-            m_lexer.ThrowOnError = options.ThrowOnError;
+            m_lexer = new YamlLexer(reader, options);
         }
 
         public KeyValuePair<string, string> Current
@@ -298,10 +295,10 @@ namespace FileMeta.Yaml
 
         public bool MoveNext()
         {
-            // If beginning of stream, move to next document
-            if (m_lexer.TokenType == TokenType.Null)
+            // If beginning of stream, move to next token
+            if (m_lexer.TokenType == TokenType.BetweenDocs)
             {
-                MoveNextDocument();
+                m_lexer.MoveNext();
             }
 
             // The current token in the Lexer is the NEXT one to be processed.
@@ -387,48 +384,7 @@ namespace FileMeta.Yaml
             // Clear the current value
             m_current = new KeyValuePair<string, string>();
 
-            // Read the balance of the current document
-            while (m_lexer.TokenType != TokenType.Null
-                && m_lexer.TokenType != TokenType.EOF
-                && m_lexer.TokenType != TokenType.BeginDoc
-                && m_lexer.TokenType != TokenType.EndDoc)
-            {
-                m_lexer.MoveNext();
-            }
-
-            // Optionally skip until the next BeginDoc token
-            if (m_options.IgnoreTextOutsideDocumentMarkers
-                && (m_lexer.TokenType == TokenType.Null || m_lexer.TokenType == TokenType.EndDoc))
-            {
-                if (!m_lexer.SkipUntilBeginDoc()) return false; // End of file
-            }
-
-            // If we're at the beginning of the stream, read the next token
-            else if (m_lexer.TokenType == TokenType.Null)
-            {
-                m_lexer.MoveNext();
-            }
-
-            // Consume an end document token, if present
-            else if (m_lexer.TokenType == TokenType.EndDoc)
-            {
-                m_lexer.MoveNext();
-                if (m_lexer.TokenType != TokenType.BeginDoc
-                    && m_lexer.TokenType != TokenType.EOF)
-                {
-                    m_lexer.ReportError("Unexpected text found after end document marker.");
-                    return false;
-                }
-            }
-
-            // If on a begin document token, read the next one to kick things off
-            if (m_lexer.TokenType == TokenType.BeginDoc)
-            {
-                m_lexer.MoveNext();
-            }
-
-            // Return true if there's something more in the document
-            return (m_lexer.TokenType != TokenType.EOF);
+            return m_lexer.MoveToNextDocument();
         }
 
         public int CopyTo(ICollection<KeyValuePair<string, string>> map)
@@ -447,30 +403,6 @@ namespace FileMeta.Yaml
             throw new InvalidOperationException("MicroYamlReader is read-once. It cannot be reset.");
         }
 
-    }
-
-    // TODO: This will be an implementation of JSON.Net JsonReader
-    class YamlJsonReader
-    {
-        #region Nested Classes
-
-        // Collection Stack
-        Stack<Collection> m_mollectionStack = new Stack<Collection>();
-
-        enum CollectionType
-        {
-            Mapping = 1,
-            Sequence = 2
-        }
-
-        // Used in the collection stack
-        class Collection
-        {
-            public CollectionType Type;
-            public int Indentation;
-        }
-
-        #endregion Nested Classes
     }
 
     class YamlReaderException : Exception
@@ -512,7 +444,8 @@ namespace YamlInternal
 
     internal enum TokenType
     {
-        Null,          // No token (yet)
+        Null,          // Not a valid token
+        BetweenDocs,   // At the beginning of the file or between documents
         Scalar,        // A string (typically a key or a value)
         KeyPrefix,     // The '? ' string indicating a subsequent key (optional)
         ValuePrefix,   // The ': ' string indicating a subsequent value
@@ -524,6 +457,7 @@ namespace YamlInternal
 
     internal class YamlLexer : IDisposable
     {
+        YamlReaderOptions m_options;
         TextReader m_reader;
 
         // Current Token
@@ -532,33 +466,14 @@ namespace YamlInternal
 
         #region Public Interface
 
-        public YamlLexer(TextReader reader)
+        public YamlLexer(TextReader reader, YamlReaderOptions options)
         {
-            ThrowOnError = true;
-            CloseInput = true;
-            SkipNonDocumentContent = true;
-
+            m_options = options.Clone();
             m_reader = reader;
-            m_tokenType = TokenType.Null;
+            m_tokenType = TokenType.BetweenDocs;
             m_token = null;
             ChInit();
         }
-
-        /// <summary>
-        /// If true, an exception will be thrown whenever an error is detected. Otherwise,
-        /// errors are accumulated and reported later.
-        /// </summary>
-        public bool ThrowOnError = false;
-
-        /// <summary>
-        /// If true, the <see cref="TextReader"/> will be closed when this is disposed.
-        /// </summary>
-        public bool CloseInput = false;
-
-        /// <summary>
-        /// If true, all content outside document start/end delimiters will be ignored.
-        /// </summary>
-        public bool SkipNonDocumentContent = false;
 
         public TokenType TokenType => m_tokenType;
 
@@ -568,6 +483,14 @@ namespace YamlInternal
 
         public void MoveNext()
         {
+            // If at the beginning of the file, move to the beginning of the next document (sensitive to options)
+            if (m_tokenType == TokenType.BetweenDocs)
+            {
+                MoveToNextDocument();
+                Debug.Assert(m_tokenType != TokenType.BetweenDocs && m_tokenType != TokenType.Null);
+                return;
+            }
+
             // Keep trying until we successfully read a token
             m_tokenType = TokenType.Null;
             m_token = null;
@@ -600,7 +523,6 @@ namespace YamlInternal
                         return;
                     }
 
-                    SkipWhitespace();
                     continue;
                 }
 
@@ -646,6 +568,63 @@ namespace YamlInternal
 
                 if (m_tokenType != TokenType.Null) return;
             }
+        }
+
+        /// <summary>
+        /// Moves to the beginning of the next document, using the YAML document markers.
+        /// </summary>
+        /// <returns>True if at the beginning of a document. False if there are no more documents.</returns>
+        /// <remarks>
+        /// This is sensitive to the <see cref="YamlReaderOptions"/> settings
+        /// <see cref="YamlReaderOptions.IgnoreTextOutsideDocumentMarkers"/> and
+        /// <see cref="YamlReaderOptions.MergeDocuments"/>.
+        /// </remarks>
+        public bool MoveToNextDocument()
+        {
+            // Read the balance of the current document (if any)
+            while (m_tokenType != TokenType.Null
+                && m_tokenType != TokenType.BetweenDocs
+                && m_tokenType != TokenType.EOF
+                && m_tokenType != TokenType.BeginDoc
+                && m_tokenType != TokenType.EndDoc)
+            {
+                MoveNext();
+            }
+
+            // Optionally skip until the next BeginDoc token
+            if (m_options.IgnoreTextOutsideDocumentMarkers
+                && (m_tokenType == TokenType.BetweenDocs || m_tokenType == TokenType.EndDoc))
+            {
+                if (!SkipUntilBeginDoc()) return false; // End of file
+            }
+
+            // If we're at the beginning of the stream, read the next token
+            else if (m_tokenType == TokenType.BetweenDocs)
+            {
+                m_tokenType = TokenType.Null;
+                MoveNext();
+            }
+
+            // Consume an end document token, if present
+            else if (m_tokenType == TokenType.EndDoc)
+            {
+                MoveNext();
+                if (m_tokenType != TokenType.BeginDoc
+                    && m_tokenType != TokenType.EOF)
+                {
+                    ReportError("Unexpected text found after end document marker.");
+                    return false;
+                }
+            }
+
+            // If on a begin document token, read the next one to kick things off
+            if (m_tokenType == TokenType.BeginDoc)
+            {
+                MoveNext();
+            }
+
+            // Return true if there's something more in the document
+            return (m_tokenType != TokenType.EOF);
         }
 
         public bool SkipUntilBeginDoc()
@@ -1219,7 +1198,7 @@ namespace YamlInternal
             }
             m_errors.Add(err);
 
-            if (ThrowOnError) throw err;
+            if (m_options.ThrowOnError) throw err;
         }
 
         /// <summary>
@@ -1242,7 +1221,7 @@ namespace YamlInternal
             m_token = string.Empty;
             if (m_reader != null)
             {
-                if (CloseInput)
+                if (m_options.CloseInput)
                 {
                     m_reader.Dispose();
                 }
