@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using Newtonsoft.Json;
+using System.Diagnostics;
 
 namespace FileMeta.Yaml
 {
@@ -15,15 +16,23 @@ namespace FileMeta.Yaml
 
         // Source code to the parent class:
         // https://github.com/JamesNK/Newtonsoft.Json/blob/master/Src/Newtonsoft.Json/JsonReader.cs
-        // Source code to JsonTextReader:
+        // Source code to JsonTextReader on which this is modeled
         // https://github.com/JamesNK/Newtonsoft.Json/blob/master/Src/Newtonsoft.Json/JsonTextReader.cs
 
         YamlLexer m_lexer;
+        int m_labelIndent;
 
         public YamlJsonReader(TextReader reader, YamlReaderOptions options = null)
         {
             m_lexer = new YamlLexer(reader, options);
         }
+
+        // Problem: when a scalar is posted on a new line, and indented more than
+        // the preceding label, I cannot tell whether it's a value or a label until I have read the
+        // subsequent token. This can all be handled by a state machine, of course, but the state
+        // machine given to me by NewtonSoft doesn't fit.
+        // Rough plan: Create my own state machine, put scalars on the stack and read he next
+        // token before deciding how to process the scalar.
 
         public override bool Read()
         {
@@ -31,9 +40,19 @@ namespace FileMeta.Yaml
             // * This class (YamlJsonReader) contains the current state and value of the reader
             // * m_lexer (YamlLexer) contains the next token to be processed.
 
-            while (m_lexer.TokenType != YamlInternal.TokenType.EOF)
+            for (; ; )
             {
-                // Before anything returns, it should call SetToken()
+                // If something in the queue, return it
+                if (m_tokenQueue.Count > 0)
+                {
+                    var entry = m_tokenQueue.Dequeue();
+                    SetToken(entry.Token, entry.Value, entry.UpdateIndex);
+                    // JsonReader.SetToken changes JsonReader.CurrentState
+                    return true;
+                }
+
+                // Before anything returns, it must call m_lexer.Read(), call EnqueueToken, or do both.
+                // Otherwise this becomes an infinite loop.
                 switch (CurrentState)
                 {
                     case State.Start:
@@ -42,32 +61,28 @@ namespace FileMeta.Yaml
                     case State.ArrayStart:
                     case State.Constructor:
                     case State.ConstructorStart:
-                        return ParseValue();
+                        ParseValue();
+                        break;
+
                     case State.Object:
                     case State.ObjectStart:
-                        return ParseObject();
                     case State.PostValue:
-                        // returns true if it hits
-                        // end of object or array
-                        if (ParsePostValue())
-                        {
-                            return true;
-                        }
+                        ParseObject();
                         break;
+
                     case State.Finished:
                         SetToken(JsonToken.None);
                         return false;
+
                     default:
                         m_lexer.ReportError($"Unexpected state: {CurrentState}.");
                         m_lexer.MoveNext(); // Make sure we don't get stuck in an infinite error loop.
                         break;
                 }
             }
-
-            return false;
         }
 
-        bool ParseValue()
+        void ParseValue()
         {
             for (; ; )
             {
@@ -75,49 +90,206 @@ namespace FileMeta.Yaml
                 {
                     case YamlInternal.TokenType.Null:
                     case YamlInternal.TokenType.BetweenDocs:
+                    case YamlInternal.TokenType.ValuePrefix:
+                    case YamlInternal.TokenType.BeginDoc:
+                        m_lexer.MoveNext();
+                        break;
+
+                    case YamlInternal.TokenType.KeyPrefix:
+                        m_lexer.ReportError("Expected value.");
                         m_lexer.MoveNext();
                         break;
 
                     case YamlInternal.TokenType.Scalar:
-                    case YamlInternal.TokenType.KeyPrefix:
-                    case YamlInternal.TokenType.ValuePrefix:
+                        {
+                            // We have to look ahead to tell how to handle this scalar
+                            var scalar = m_lexer.TokenValue;
+                            var scalarIndent = m_lexer.Indentation;
+                            m_lexer.MoveNext();
+
+                            // If next token type is a value prefix, this scalar is a label
+                            if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
+                            {
+                                // If indentation of this label is greater than current, start a new object/mapping
+                                if (scalarIndent > m_labelIndent)
+                                {
+                                    StartElement(scalarIndent, JsonToken.StartObject);
+                                    EnqueueToken(JsonToken.PropertyName, scalar);
+                                }
+
+                                // If indentation of this label is equal to current, the value is empty string
+                                else if (scalarIndent == m_labelIndent)
+                                {
+                                    EnqueueToken(JsonToken.String, string.Empty);
+                                    EnqueueToken(JsonToken.PropertyName, scalar);
+                                }
+
+                                // Indentation is less than current, close the object stack to this level
+                                else
+                                {
+                                    EndElements(scalarIndent);
+                                    EnqueueToken(JsonToken.PropertyName, scalar);
+                                }
+                            }
+
+                            // Not a value prefix, this scalar is a value
+                            else
+                            {
+                                EnqueueToken(JsonToken.String, scalar);
+                            }
+                        }
+                        return;
+
                     case YamlInternal.TokenType.SequenceIndicator:
-                    case YamlInternal.TokenType.BeginDoc:
+                        if (m_stackTop.Type == StackEntryType.Sequence && m_stackTop.PrevIndent <= m_lexer.Indentation)
+                        {
+                            // This is a continuation of a sequence
+                            m_lexer.MoveNext();
+                            break;
+                        }
+                        if (m_lexer.Indentation >= m_stackTop.PrevIndent)
+                        {
+                            // This is the beginning of a new sequence
+                            StartElement(m_lexer.Indentation, JsonToken.StartArray);
+                            m_lexer.MoveNext();
+                            return;
+                        }
+                        m_lexer.ReportError("Unexpected sequence indicator '-'.");
+                        m_lexer.MoveNext();
+                        break;
+
                     case YamlInternal.TokenType.EndDoc:
                     case YamlInternal.TokenType.EOF:
-                        return false;
+                        // In YAML, end of document is a legitimate empty value.
+                        EnqueueToken(JsonToken.String, string.Empty);
+                        return;
                 }
             }
         }
 
-        bool ParseObject()
+        void ParseObject()
         {
-            throw new NotImplementedException();
+            for (; ; )
+            {
+                switch (m_lexer.TokenType)
+                {
+                    case YamlInternal.TokenType.Null:
+                    case YamlInternal.TokenType.BetweenDocs:
+                    case YamlInternal.TokenType.ValuePrefix:
+                    case YamlInternal.TokenType.BeginDoc:
+                        m_lexer.MoveNext();
+                        break;
+
+                    case YamlInternal.TokenType.KeyPrefix:
+                        m_lexer.MoveNext();
+                        break;
+
+                    case YamlInternal.TokenType.Scalar:
+                        EnqueueToken(JsonToken.PropertyName, m_lexer.TokenValue);
+                        m_lexer.MoveNext();
+                        if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
+                        {
+                            m_lexer.MoveNext();
+                        }
+                        else
+                        {
+                            m_lexer.ReportError("Expected colon ':'.");
+                        }
+                        return;
+
+                    case YamlInternal.TokenType.SequenceIndicator:
+                        if (m_lexer.Indentation <= m_stackTop.PrevIndent)
+                        {
+                            EndElements(m_lexer.Indentation);
+                            return;
+                        }
+                        m_lexer.ReportError("Unexpected sequence indicator '-'.");
+                        m_lexer.MoveNext();
+                        break;
+
+                    case YamlInternal.TokenType.EndDoc:
+                    case YamlInternal.TokenType.EOF:
+                        EndElements(int.MinValue);
+                        EnqueueToken(JsonToken.None);
+                        return;
+                }
+            }
         }
 
-        bool ParsePostValue()
+        void StartElement(int indent, JsonToken token)
         {
-            throw new NotImplementedException();
+            Debug.Assert(indent > m_labelIndent);
+            Debug.Assert(token == JsonToken.StartObject || token == JsonToken.StartArray);
+            Push((token == JsonToken.StartObject) ? StackEntryType.Mapping : StackEntryType.Sequence,
+                m_labelIndent);
+            EnqueueToken(token);
+            m_labelIndent = indent;
         }
 
-        #region Nested Classes
-
-        // Collection Stack
-        Stack<Collection> m_mollectionStack = new Stack<Collection>();
-
-        enum CollectionType
+        void EndElements(int indent)
         {
-            Mapping = 1,
-            Sequence = 2
+            while (m_stackTop.PrevIndent > indent)
+            {
+                EnqueueToken((m_stackTop.Type == StackEntryType.Mapping) ? JsonToken.EndObject : JsonToken.EndArray);
+            }
         }
 
-        // Used in the collection stack
-        class Collection
+        #region Queue
+
+        void EnqueueToken(JsonToken token, string value = null, bool updateIndex = true)
         {
-            public CollectionType Type;
-            public int Indentation;
+            m_tokenQueue.Enqueue(new QueueEntry
+            {
+                Token = token,
+                Value = value,
+                UpdateIndex = updateIndex
+            });
         }
 
-        #endregion Nested Classes
+        Queue<QueueEntry> m_tokenQueue = new Queue<QueueEntry>();
+
+        class QueueEntry
+        {
+            public JsonToken Token;
+            public string Value;
+            public bool UpdateIndex;
+        }
+
+        #endregion Queue
+
+        #region Stack
+
+        Stack<StackEntry> m_stack = new Stack<StackEntry>();
+        StackEntry m_stackTop;
+
+        void Push(StackEntryType type, int indentation)
+        {
+            m_stack.Push(m_stackTop);
+            m_stackTop = new StackEntry
+            {
+                Type = type,
+                PrevIndent = indentation
+            };
+        }
+
+        void Pop()
+        {
+            m_stackTop = m_stack.Pop();
+        }
+
+        enum StackEntryType
+        {
+            Label = 1,
+            Mapping = 2,
+            Sequence = 3
+        }
+
+        class StackEntry
+        {
+            public StackEntryType Type;
+            public int PrevIndent;
+        }
+
+        #endregion Stack
     }
 }
