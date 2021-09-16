@@ -468,7 +468,7 @@ namespace YamlInternal
 
         public YamlLexer(TextReader reader, YamlReaderOptions options)
         {
-            m_options = options.Clone();
+            m_options = (options != null) ? options.Clone() : new YamlReaderOptions();
             m_reader = reader;
             m_tokenType = TokenType.BetweenDocs;
             m_token = null;

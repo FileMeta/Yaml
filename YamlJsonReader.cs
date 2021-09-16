@@ -228,9 +228,10 @@ namespace FileMeta.Yaml
 
         void EndElements(int indent)
         {
-            while (m_stackTop.PrevIndent > indent)
+            while (m_stackTop != null && m_stackTop.PrevIndent > indent)
             {
                 EnqueueToken((m_stackTop.Type == StackEntryType.Mapping) ? JsonToken.EndObject : JsonToken.EndArray);
+                Pop();
             }
         }
 

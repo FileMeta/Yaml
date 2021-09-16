@@ -7,8 +7,8 @@
     <ProjectGuid>{3AC10B67-C1A8-48DC-B140-8108DA3F2905}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>FileMeta.Yaml</RootNamespace>
-    <AssemblyName>MicroYaml</AssemblyName>
+    <RootNamespace>UnitTests</RootNamespace>
+    <AssemblyName>Yaml</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -46,6 +46,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConsoleHelper.cs" />
+    <Compile Include="TestYamlJsonReader.cs" />
+    <Compile Include="UnitTestException.cs" />
     <Compile Include="YamlJsonReader.cs" />
     <Compile Include="YamlReader.cs" />
     <Compile Include="MicroYamlWriter.cs" />
@@ -55,6 +57,12 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
+    <None Include="TestDocs\test1.yml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestDocs\test1.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
