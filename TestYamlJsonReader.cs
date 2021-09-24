@@ -15,6 +15,7 @@ namespace UnitTests
         public static void PerformTests()
         {
             CompareYamlToJson(@"TestDocs\test1.yml", @"TestDocs\test1.json");
+            CompareYamlToJson(@"TestDocs\test2.yml", @"TestDocs\test2.json");
         }
 
         static void CompareYamlToJson(string yamlFilename, string jsonFilename)
@@ -24,17 +25,18 @@ namespace UnitTests
             yamlOptions.MergeDocuments = true;
             yamlOptions.IgnoreTextOutsideDocumentMarkers = true;
             yamlOptions.CloseInput = true;
-            JObject fromYaml;
+            JToken fromYaml;
             using (var reader = new YamlJsonReader(new StreamReader(yamlFilename, Encoding.UTF8, true), yamlOptions))
             {
-                fromYaml = (JObject)JToken.ReadFrom(reader);
+                fromYaml = JToken.ReadFrom(reader);
             }
+            //Dump(fromYaml);
 
             // Parse the JSON into a structure
-            JObject fromJson;
+            JToken fromJson;
             using(var reader = new StreamReader(jsonFilename, Encoding.UTF8, true))
             {
-                fromJson = (JObject)JToken.ReadFrom(new JsonTextReader(reader));
+                fromJson = JToken.ReadFrom(new JsonTextReader(reader));
             }
 
             CompareJsonTrees(fromYaml, fromJson);
@@ -115,6 +117,44 @@ namespace UnitTests
             */
 
             throw new UnitTestException($"Error at '{token.Path}': {msg}");
+        }
+
+        static void Dump(JToken jtoken)
+        {
+            using (var writer = new JsonTextWriter(Console.Out))
+            {
+                writer.Formatting = Formatting.Indented;
+                jtoken.WriteTo(writer);
+            }
+        }
+
+        static void DumpYamlReader(string filename)
+        {
+            var yamlOptions = new YamlReaderOptions();
+            yamlOptions.MergeDocuments = true;
+            yamlOptions.IgnoreTextOutsideDocumentMarkers = true;
+            yamlOptions.CloseInput = true;
+            using (var reader = new YamlJsonReader(new StreamReader(filename, Encoding.UTF8, true), yamlOptions))
+            {
+                Dump(reader);
+            }
+        }
+
+        static void DumpJsonReader(string filename)
+        {
+            using (var reader = new StreamReader(filename, Encoding.UTF8, true))
+            {
+                Dump(new JsonTextReader(reader));
+            }
+        }
+
+        static void Dump(JsonReader reader)
+        {
+            while (reader.Read())
+            {
+                Console.WriteLine($"({reader.TokenType}, \"{reader.Value}\")");
+            }
+            Console.WriteLine();
         }
     }
 }

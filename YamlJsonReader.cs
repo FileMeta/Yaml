@@ -20,11 +20,12 @@ namespace FileMeta.Yaml
         // https://github.com/JamesNK/Newtonsoft.Json/blob/master/Src/Newtonsoft.Json/JsonTextReader.cs
 
         YamlLexer m_lexer;
-        int m_labelIndent;
+        int m_currentIndent;
 
         public YamlJsonReader(TextReader reader, YamlReaderOptions options = null)
         {
             m_lexer = new YamlLexer(reader, options);
+            m_currentIndent = -1; // Indentation of the unnamed owner object.
         }
 
         // Problem: when a scalar is posted on a new line, and indented more than
@@ -46,9 +47,14 @@ namespace FileMeta.Yaml
                 if (m_tokenQueue.Count > 0)
                 {
                     var entry = m_tokenQueue.Dequeue();
+                    //Console.WriteLine($"({entry.Token}, '{entry.Value}')");
                     SetToken(entry.Token, entry.Value, entry.UpdateIndex);
+                    if (entry.Token == JsonToken.String) // Just wrote out a value.
+                    {
+                        SetStateBasedOnCurrent();
+                    }
                     // JsonReader.SetToken changes JsonReader.CurrentState
-                    return true;
+                    return entry.Token != JsonToken.Null;
                 }
 
                 // Before anything returns, it must call m_lexer.Read(), call EnqueueToken, or do both.
@@ -111,14 +117,14 @@ namespace FileMeta.Yaml
                             if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
                             {
                                 // If indentation of this label is greater than current, start a new object/mapping
-                                if (scalarIndent > m_labelIndent)
+                                if (scalarIndent > m_currentIndent)
                                 {
                                     StartElement(scalarIndent, JsonToken.StartObject);
                                     EnqueueToken(JsonToken.PropertyName, scalar);
                                 }
 
                                 // If indentation of this label is equal to current, the value is empty string
-                                else if (scalarIndent == m_labelIndent)
+                                else if (scalarIndent == m_currentIndent)
                                 {
                                     EnqueueToken(JsonToken.String, string.Empty);
                                     EnqueueToken(JsonToken.PropertyName, scalar);
@@ -185,6 +191,7 @@ namespace FileMeta.Yaml
                         break;
 
                     case YamlInternal.TokenType.Scalar:
+                        EndElements(m_lexer.Indentation);
                         EnqueueToken(JsonToken.PropertyName, m_lexer.TokenValue);
                         m_lexer.MoveNext();
                         if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
@@ -210,7 +217,7 @@ namespace FileMeta.Yaml
                     case YamlInternal.TokenType.EndDoc:
                     case YamlInternal.TokenType.EOF:
                         EndElements(int.MinValue);
-                        EnqueueToken(JsonToken.None);
+                        EnqueueToken(JsonToken.Null);
                         return;
                 }
             }
@@ -218,20 +225,25 @@ namespace FileMeta.Yaml
 
         void StartElement(int indent, JsonToken token)
         {
-            Debug.Assert(indent > m_labelIndent);
+            Debug.Assert(indent > m_currentIndent);
             Debug.Assert(token == JsonToken.StartObject || token == JsonToken.StartArray);
             Push((token == JsonToken.StartObject) ? StackEntryType.Mapping : StackEntryType.Sequence,
-                m_labelIndent);
+                m_currentIndent);
             EnqueueToken(token);
-            m_labelIndent = indent;
+            m_currentIndent = indent;
         }
 
         void EndElements(int indent)
         {
-            while (m_stackTop != null && m_stackTop.PrevIndent > indent)
+            while (m_stackTop != null && m_stackTop.PrevIndent >= indent)
             {
                 EnqueueToken((m_stackTop.Type == StackEntryType.Mapping) ? JsonToken.EndObject : JsonToken.EndArray);
                 Pop();
+            }
+            if (m_currentIndent != indent)
+            {
+                m_lexer.ReportError("Indentation mismatch.");
+                m_currentIndent = indent;
             }
         }
 
@@ -287,8 +299,8 @@ namespace FileMeta.Yaml
 
         class StackEntry
         {
-            public StackEntryType Type;
-            public int PrevIndent;
+            public StackEntryType Type; // Type of containing entity
+            public int PrevIndent;      // Indentation level of the containing entity (not of its members)
         }
 
         #endregion Stack

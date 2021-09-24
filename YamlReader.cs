@@ -496,7 +496,7 @@ namespace YamlInternal
             m_token = null;
             for (;;)
             {
-                SkipWhitespace();
+                SkipInlineWhitespace();
                 char ch = ChPeek();
 
                 if (ch == 0)
@@ -543,19 +543,19 @@ namespace YamlInternal
                     ReadBlockScalar();
                 }
 
-                else if (ReadMatch("? ")) // Key Prefix
+                else if (ReadPrefix('?')) // Key Prefix
                 {
                     m_tokenType = TokenType.KeyPrefix;
                     return;
                 }
 
-                else if (ReadMatch(": ")) // value prefix
+                else if (ReadPrefix(':')) // value prefix
                 {
                     m_tokenType = TokenType.ValuePrefix;
                     return;
                 }
 
-                else if (ReadMatch("- ")) // Sequence entry prefix
+                else if (ReadPrefix('-')) // Sequence entry prefix
                 {
                     m_tokenType = TokenType.SequenceIndicator;
                     return;
@@ -751,7 +751,7 @@ namespace YamlInternal
             }
 
             // Skip to the end of the line. Only whitespace and comment should appear.
-            SkipWhitespace();
+            SkipInlineWhitespace();
             ch = ChPeek();
             if (ch != '#' && ch != '\n')
             {
@@ -763,7 +763,7 @@ namespace YamlInternal
             // If not specified, determine the indent level by the indentation of the first line
             if (indent == 0)
             {
-                indent = SkipWhitespace();
+                indent = SkipInlineWhitespace();
                 if (indent == 0)
                 {
                     // Empty value
@@ -864,7 +864,9 @@ namespace YamlInternal
                 ch = ChRead();
                 if (ch == '\0' || ch == '\n') break; // EOF or Newline
                 if ((ch == ' ' || ch == '\t') && ChPeek() == '#') break; // Comment
-                if ((ch == ':' || ch == '?') && ChPeek() == ' ') break; // Key or value indicator
+                if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek())) break; // Key or value indicator
+                // TODO: Make key or value indicator sensitive to whether a key or a value is expected.
+                // E.g. an embedded colon is OK in a value but not in a key.
                 sb.Append(ch);
             }
             if (ch != '\0') ChUnread(ch);
@@ -973,9 +975,9 @@ namespace YamlInternal
             return (char)result;
         }
 
-        // In YAML, whitespace doesn't include newlines.
+        // Skip whitespace but not newlines.
         // Depending on context, the number of characters may be significant.
-        private int SkipWhitespace()
+        private int SkipInlineWhitespace()
         {
             int count = 0;
             for (;;)
@@ -1099,13 +1101,12 @@ namespace YamlInternal
             {
                 --m_lineNum;
                 m_linePos = m_lineLengths[m_lineNum & 0x0003]; // x & 0x03 is equivalent to mod 4.
-                m_lineIndent = m_lineLengths[m_lineNum & 0x0003];
+                m_lineIndent = m_lineIndents[m_lineNum & 0x0003];
             }
             else if (m_linePos > 0)
             {
-                if (m_lineIndent <= m_linePos)
-                    m_lineIndent = m_linePos - 1;
                 --m_linePos;
+                if (m_lineIndent > m_linePos) m_lineIndent = m_linePos;
             }
         }
 
@@ -1137,6 +1138,16 @@ namespace YamlInternal
                 --i;
                 ChUnread(value[i]);
             }
+            return false;
+        }
+
+        // Looks for a single-character prefix followed by whitespace
+        bool ReadPrefix(char value)
+        {
+            if (value != ChPeek()) return false;
+            ChRead();
+            if (IsWhiteSpace(ChPeek())) return true;
+            ChUnread(value);
             return false;
         }
 
@@ -1176,6 +1187,16 @@ namespace YamlInternal
         }
 
         #endregion
+
+        #region Character Types
+
+        static bool IsWhiteSpace(char ch)
+        {
+            // No need to check for '\r' because that is handled in the character reader.
+            return (ch == ' ' || ch == '\t' || ch == '\n');
+        }
+
+        #endregion Chacter Types
 
         #region Error Handling
 

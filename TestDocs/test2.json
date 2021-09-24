@@ -1,0 +1,17 @@
+{
+  "one": "OneValue",
+  "two": "TwoValue",
+  "list": [
+    "Juan de Fuca Strait",
+    "San Diego",
+    "Key West",
+    "Eastport"
+  ],
+  "map": {
+    "make": "MINI",
+    "model": "Cooper",
+    "year": "2004",
+    "color": "Chili Red"
+  },
+  "three": "ThreeValue"
+}
