@@ -1,0 +1,12 @@
+=== Simple Test
+
+--- in-yaml
+name: Harry Potter
+birthdate: 1980-07-31
+
+--- in-json
+{
+  "name": "Harry Potter",
+  "birthdate": "1980-07-31"
+}
+

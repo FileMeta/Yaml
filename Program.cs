@@ -22,23 +22,30 @@ namespace UnitTests
         // Execute all unit tests.
         static void Main(string[] args)
         {
-            TestYamlJsonReader.PerformTests();
-
-            m_successCount = 0;
-            m_failureCount = 0;
-
-            ExecuteTest("0", m_cTest0, m_cTest0Expected, false);
-            ExecuteTest("1", m_cTest1, m_cTest1Expected, false);
-            ExecuteTest("2", m_cTest2, m_cTest2Expected, true);
-
-            if (m_failureCount == 0)
+            try
             {
-                Console.WriteLine("All {0} tests passed.", m_successCount);
+                TestYamlJsonReader.PerformTests();
+
+                m_successCount = 0;
+                m_failureCount = 0;
+
+                ExecuteTest("0", m_cTest0, m_cTest0Expected, false);
+                ExecuteTest("1", m_cTest1, m_cTest1Expected, false);
+                ExecuteTest("2", m_cTest2, m_cTest2Expected, true);
+
+                if (m_failureCount == 0)
+                {
+                    Console.WriteLine("All {0} tests passed.", m_successCount);
+                }
+                else
+                {
+                    Console.WriteLine("{0} tests passed.", m_successCount);
+                    Console.WriteLine("{0} tests failed.", m_failureCount);
+                }
             }
-            else
+            catch (Exception err)
             {
-                Console.WriteLine("{0} tests passed.", m_successCount);
-                Console.WriteLine("{0} tests failed.", m_failureCount);
+                Console.WriteLine(err.ToString());
             }
 
             Win32Interop.ConsoleHelper.PromptAndWaitIfSoleConsole();
