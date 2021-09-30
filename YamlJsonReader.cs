@@ -49,7 +49,9 @@ namespace FileMeta.Yaml
                     var entry = m_tokenQueue.Dequeue();
                     //Console.WriteLine($"({entry.Token}, '{entry.Value}')");
                     SetToken(entry.Token, entry.Value, entry.UpdateIndex);
-                    if (entry.Token == JsonToken.String) // Just wrote out a value.
+                    if (entry.Token == JsonToken.String
+                        || entry.Token == JsonToken.EndObject
+                        || entry.Token == JsonToken.EndArray) // Just wrote out a value.
                     {
                         SetStateBasedOnCurrent();
                     }
@@ -147,6 +149,13 @@ namespace FileMeta.Yaml
                         return;
 
                     case YamlInternal.TokenType.SequenceIndicator:
+                        if (m_stackTop == null)
+                        {
+                            // The root of the document is a sequence
+                            StartElement(m_lexer.Indentation, JsonToken.StartArray);
+                            m_lexer.MoveNext();
+                            return;
+                        }
                         if (m_stackTop.Type == StackEntryType.Sequence && m_stackTop.PrevIndent <= m_lexer.Indentation)
                         {
                             // This is a continuation of a sequence
@@ -166,6 +175,12 @@ namespace FileMeta.Yaml
 
                     case YamlInternal.TokenType.EndDoc:
                     case YamlInternal.TokenType.EOF:
+                        // If we're in a sequence, end the sequence
+                        if (m_stackTop != null && m_stackTop.Type == StackEntryType.Sequence)
+                        {
+                            EndElements(-1);
+                            return;
+                        }
                         // In YAML, end of document is a legitimate empty value.
                         EnqueueToken(JsonToken.String, string.Empty);
                         return;
@@ -216,7 +231,7 @@ namespace FileMeta.Yaml
 
                     case YamlInternal.TokenType.EndDoc:
                     case YamlInternal.TokenType.EOF:
-                        EndElements(int.MinValue);
+                        EndElements(-1);
                         EnqueueToken(JsonToken.Null);
                         return;
                 }
@@ -287,6 +302,7 @@ namespace FileMeta.Yaml
 
         void Pop()
         {
+            m_currentIndent = m_stackTop.PrevIndent;
             m_stackTop = m_stack.Pop();
         }
 

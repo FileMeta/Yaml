@@ -1,4 +1,7 @@
-﻿using System;
+﻿// Uncomment to enable debugging tools
+//#define TRACE_READERS
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -29,6 +32,23 @@ namespace UnitTests
 
         public static void Compare(Stream yamlStream, YamlReaderOptions yamlOptions, Stream jsonStream)
         {
+            // For debugging, trace the JSON and then the YAML readers
+#if TRACE_READERS
+            Console.WriteLine("  JSON Reader:");
+            using (var reader = new StreamReader(jsonStream, Encoding.UTF8, true, 512, true))
+            {
+                Dump(new JsonTextReader(reader));
+            }
+            Console.WriteLine();
+            Console.WriteLine("  YAML Reader:");
+            using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
+            {
+                Dump(reader);
+            }
+            yamlStream.Position = 0;
+            jsonStream.Position = 0;
+#endif
+
             // Parse the YAML into a structure
             JToken fromYaml;
             using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
@@ -49,6 +69,26 @@ namespace UnitTests
 
         static void CompareJsonTrees(JToken value, JToken expected)
         {
+            // Perform type conversion
+            // (FileMeta.Yaml does not attempt to detect type as JSON does)
+            if (value.Type == JTokenType.String)
+            {
+                switch (expected.Type)
+                {
+                    case JTokenType.Integer:
+                        value = new JValue(int.Parse((string)value));
+                        break;
+
+                    case JTokenType.Float:
+                        value = new JValue(double.Parse((string)value));
+                        break;
+
+                    case JTokenType.Boolean:
+                        value = new JValue(string.Compare((string)value, "true", StringComparison.OrdinalIgnoreCase));
+                        break;
+                }
+            }
+
             if (value.Type != expected.Type)
             {
                 ReportCompareJsonError(value, $"Type mismatch: found='{value.Type}' expected='{expected.Type}'");

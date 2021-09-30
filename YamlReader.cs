@@ -63,6 +63,11 @@ namespace FileMeta.Yaml
     /// </summary>
     public class YamlReaderOptions
     {
+        public YamlReaderOptions()
+        {
+            ThrowOnError = true;
+        }
+
         /// <summary>
         /// Gets or sets a value indicating whether the underlying stream or TextReader should be closed
         /// when the reader is closed. The default is false.
@@ -71,7 +76,7 @@ namespace FileMeta.Yaml
 
         /// <summary>
         /// Gets or sets a value indicating whether the reader should ignore all input that is outside
-        /// document markers.
+        /// document markers. The default is false.
         /// </summary>
         /// <remarks>
         /// <para>A YAML start document marker is a line containing three dashes, "---" with no other contents.
@@ -120,7 +125,8 @@ namespace FileMeta.Yaml
 
         /// <summary>
         /// If true, the parser or reader will thrown a <see cref="YamlReaderException"/> when a
-        /// syntax error is encountered. If false, you must check for errors on the reader.
+        /// syntax error is encountered. If false, you must check for errors on the reader. Default is
+        /// true.
         /// </summary>
         public bool ThrowOnError { get; set; }
 
@@ -430,11 +436,7 @@ namespace FileMeta.Yaml
         /// </summary>
         public int LinePosition { get; private set; }
 
-        /// <summary>
-        /// Returns the full error message including the line and character offset at
-        /// which the error occurred.
-        /// </summary>
-        public string FullMessage => $"Yaml({LineNumber},{LinePosition}): {Message}";
+        public override string Message => $"Yaml({LineNumber},{LinePosition}): {base.Message}";
     }
 }
 

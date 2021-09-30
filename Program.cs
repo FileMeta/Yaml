@@ -153,7 +153,7 @@ namespace UnitTests
 
                     if (reader.ErrorOccurred)
                     {
-                        ReportError(reader.Errors[0].FullMessage);
+                        ReportError(reader.Errors[0].Message);
                         success = false;
                     }
 
@@ -215,6 +215,7 @@ namespace UnitTests
             try
             {
                 YamlReaderOptions options = new YamlReaderOptions();
+                options.ThrowOnError = false;
                 while (yaml.Length > 0)
                 {
                     for (int i=0; i<4; ++i)
