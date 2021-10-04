@@ -452,6 +452,7 @@ namespace YamlInternal
         KeyPrefix,     // The '? ' string indicating a subsequent key (optional)
         ValuePrefix,   // The ': ' string indicating a subsequent value
         SequenceIndicator, // The '- ' string indicating a sequence entry
+        Tag,           // A tag beginning with ! - typically indicating a type.
         BeginDoc,      // A line containing exclusively '---'
         EndDoc,        // A line containing exclusively '...'
         EOF            // End of the file 
@@ -561,6 +562,11 @@ namespace YamlInternal
                 {
                     m_tokenType = TokenType.SequenceIndicator;
                     return;
+                }
+
+                else if (ch == '!')
+                {
+                    ReadTag();
                 }
 
                 else
@@ -883,6 +889,22 @@ namespace YamlInternal
 
             // Return the scalar
             m_tokenType = TokenType.Scalar;
+            m_token = sb.ToString();
+        }
+
+        private void ReadTag()
+        {
+            char ch;
+            var sb = new StringBuilder();
+            for (; ; )
+            {
+                sb.Append(ChRead());
+                ch = ChPeek();
+                if (ch == '\0' || IsWhiteSpace(ch)) break;
+            }
+
+            // Return the scalar
+            m_tokenType = TokenType.Tag;
             m_token = sb.ToString();
         }
 

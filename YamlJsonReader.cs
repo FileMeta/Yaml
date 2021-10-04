@@ -184,6 +184,11 @@ namespace FileMeta.Yaml
                         // In YAML, end of document is a legitimate empty value.
                         EnqueueToken(JsonToken.String, string.Empty);
                         return;
+
+                    // This parser simply ignores tags.
+                    case YamlInternal.TokenType.Tag:
+                        m_lexer.MoveNext();
+                        break;
                 }
             }
         }
@@ -234,6 +239,11 @@ namespace FileMeta.Yaml
                         EndElements(-1);
                         EnqueueToken(JsonToken.Null);
                         return;
+
+                    // This parser simply ignores tags.
+                    case YamlInternal.TokenType.Tag:
+                        m_lexer.MoveNext();
+                        break;
                 }
             }
         }
