@@ -8,6 +8,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using FileMeta.Yaml;
 
+// TestML samples are taken from the validation suite at
+// https://github.com/yaml/yaml-test-suite/tree/master/test
+
 namespace UnitTests
 {
     class TestYamlJsonReader
@@ -17,7 +20,8 @@ namespace UnitTests
             Console.WriteLine("TestYamlJsonReader");
             var testDir = Path.GetFullPath("./TestDocs");
 
-            PerformTmlTest(Path.Combine(testDir, "229Q.tml"));
+            // When debugging, put first test here
+            //PerformTmlTest(Path.Combine(testDir, "26DV-mod.tml"));
 
             Console.WriteLine("Raw Tests:");
             foreach (var yamlFilename in Directory.GetFiles(testDir, "*.yml"))
