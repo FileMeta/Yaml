@@ -65,6 +65,9 @@
     <None Include="TestDocs\229Q.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestDocs\236B.tml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestDocs\26DV-mod.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

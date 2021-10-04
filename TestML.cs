@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using FileMeta.Yaml;
 
 namespace UnitTests
 {
@@ -22,6 +25,7 @@ namespace UnitTests
     {
         Stream m_yamlStream = null;
         Stream m_jsonStream = null;
+        bool m_shouldError = false;
 
         public string Title { get; private set; }
 
@@ -48,6 +52,11 @@ namespace UnitTests
                     if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_jsonStream);
+                    }
+
+                    if (line.Trim().Equals("--- error", StringComparison.Ordinal))
+                    {
+                        m_shouldError = true;
                     }
                 }
             }
@@ -83,19 +92,47 @@ namespace UnitTests
         /// </summary>
         public void PerformTest()
         {
-            if (m_yamlStream == null || m_jsonStream == null)
+            if (m_yamlStream == null || (m_jsonStream == null && m_shouldError == false))
             {
                 throw new InvalidOperationException("Must load TestML first.");
             }
 
-            var yamlOptions = new FileMeta.Yaml.YamlReaderOptions();
+            var yamlOptions = new YamlReaderOptions();
             yamlOptions.MergeDocuments = true;
             yamlOptions.IgnoreTextOutsideDocumentMarkers = false;
             yamlOptions.CloseInput = false;
 
-            m_yamlStream.Position = 0;
-            m_jsonStream.Position = 0;
-            CompareYamlToJson.Compare(m_yamlStream, yamlOptions, m_jsonStream); ;
+            if (!m_shouldError)
+            {
+                m_yamlStream.Position = 0;
+                m_jsonStream.Position = 0;
+                CompareYamlToJson.Compare(m_yamlStream, yamlOptions, m_jsonStream); ;
+            }
+            else
+            {
+                AssertParseError(m_yamlStream, yamlOptions);
+            }
+        }
+
+        void AssertParseError(Stream yamlStream, YamlReaderOptions yamlOptions)
+        {
+            bool hasError = false;
+            try
+            {
+                JToken fromYaml;
+                using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
+                {
+                    fromYaml = JToken.ReadFrom(reader);
+                }
+            }
+            catch (YamlReaderException)
+            {
+                hasError = true;
+            }
+            if (!hasError)
+            {
+                throw new ApplicationException("Expected YamlReaderException but parse succeeded.");
+            }
         }
 
         public void DumpYaml()
