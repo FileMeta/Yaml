@@ -49,43 +49,44 @@ namespace FileMeta.Yaml
                     var entry = m_tokenQueue.Dequeue();
                     //Console.WriteLine($"({entry.Token}, '{entry.Value}')");
                     SetToken(entry.Token, entry.Value, entry.UpdateIndex);
-                    if (entry.Token == JsonToken.String
-                        || entry.Token == JsonToken.EndObject
-                        || entry.Token == JsonToken.EndArray) // Just wrote out a value.
-                    {
-                        SetStateBasedOnCurrent();
-                    }
-                    // JsonReader.SetToken changes JsonReader.CurrentState
-                    return entry.Token != JsonToken.Null;
+                    return entry.Token != JsonToken.Undefined;
                 }
+
+                // TODO: Update the state machine. The basic framework was inherited from
+                // NewtonSoft Json.Net but YAML is different. Most likely, ParseValue and
+                // ParseObject can be merged.
+                // Regardless, the task is to interpret the next token in context of the
+                // last token emitted and the type of collection at the top of the stack.
 
                 // Before anything returns, it must call m_lexer.Read(), call EnqueueToken, or do both.
                 // Otherwise this becomes an infinite loop.
-                switch (CurrentState)
+                switch (TokenType)
                 {
-                    case State.Start:
-                    case State.Property:
-                    case State.Array:
-                    case State.ArrayStart:
-                    case State.Constructor:
-                    case State.ConstructorStart:
+                    case JsonToken.StartObject:
+                    case JsonToken.StartArray:
+                    case JsonToken.PropertyName:
+                    case JsonToken.None:
                         ParseValue();
                         break;
 
-                    case State.Object:
-                    case State.ObjectStart:
-                    case State.PostValue:
-                        ParseObject();
+                    case JsonToken.EndObject:
+                    case JsonToken.EndArray:
+                    case JsonToken.String:
+                        if (m_stackTop != null && m_stackTop.Type == StackEntryType.Sequence)
+                        {
+                            ParseValue();
+                        }
+                        else
+                        {
+                            ParseObject();
+                        }
                         break;
 
-                    case State.Finished:
-                        SetToken(JsonToken.None);
-                        return false;
+                    case JsonToken.Undefined:
+                        return false; // End of input
 
                     default:
-                        m_lexer.ReportError($"Unexpected state: {CurrentState}.");
-                        m_lexer.MoveNext(); // Make sure we don't get stuck in an infinite error loop.
-                        break;
+                        throw new Exception($"Unexpected token type: {TokenType}");
                 }
             }
         }
@@ -98,10 +99,37 @@ namespace FileMeta.Yaml
                 {
                     case YamlInternal.TokenType.Null:
                     case YamlInternal.TokenType.BetweenDocs:
-                    case YamlInternal.TokenType.ValuePrefix:
                     case YamlInternal.TokenType.BeginDoc:
                         m_lexer.MoveNext();
                         break;
+
+                    case YamlInternal.TokenType.ValuePrefix:
+                        // This is a bare ValuePrefix without a preceding scalar (key)
+
+                        // If indentation is greater than surrrounding, start a new object/mapping and give this value an empty label
+                        if (m_lexer.Indentation > m_currentIndent)
+                        {
+                            StartElement(m_lexer.Indentation, JsonToken.StartObject);
+                            EnqueueToken(JsonToken.PropertyName, string.Empty);
+                        }
+
+                        // If indentation of this label is equal to current, the value is empty string and so is the next label
+                        else if (m_lexer.Indentation == m_currentIndent)
+                        {
+                            EnqueueToken(JsonToken.String, string.Empty);
+                            EnqueueToken(JsonToken.PropertyName, string.Empty);
+                        }
+
+                        // Indentation is less than current, close the object stack to this level and set an empty string label
+                        else
+                        {
+                            EndElements(m_lexer.Indentation);
+                            EnqueueToken(JsonToken.PropertyName, string.Empty);
+                        }
+
+                        // Consume the ValuePrefix
+                        m_lexer.MoveNext();
+                        return;
 
                     case YamlInternal.TokenType.KeyPrefix:
                         m_lexer.ReportError("Expected value.");
@@ -138,6 +166,9 @@ namespace FileMeta.Yaml
                                     EndElements(scalarIndent);
                                     EnqueueToken(JsonToken.PropertyName, scalar);
                                 }
+
+                                // Consume the ValuePrefix
+                                m_lexer.MoveNext();
                             }
 
                             // Not a value prefix, this scalar is a value
@@ -237,7 +268,7 @@ namespace FileMeta.Yaml
                     case YamlInternal.TokenType.EndDoc:
                     case YamlInternal.TokenType.EOF:
                         EndElements(-1);
-                        EnqueueToken(JsonToken.Null);
+                        EnqueueToken(JsonToken.Undefined); // End of file
                         return;
 
                     // This parser simply ignores tags.

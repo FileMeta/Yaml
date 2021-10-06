@@ -1,5 +1,6 @@
 ﻿// Uncomment to enable debugging tools
 //#define TRACE_READERS
+//#define TRACE_YAML_TO_JSON
 
 using System;
 using System.Collections.Generic;
@@ -55,7 +56,9 @@ namespace UnitTests
             {
                 fromYaml = JToken.ReadFrom(reader);
             }
-            //Dump(fromYaml);
+#if TRACE_YAML_TO_JSON
+            Dump(fromYaml);
+#endif
 
             // Parse the JSON into a structure
             JToken fromJson;
@@ -97,10 +100,10 @@ namespace UnitTests
             if (value is JProperty)
             {
                 var v = (JProperty)value;
-                var e = (JProperty)value;
+                var e = (JProperty)expected;
                 if (!string.Equals(v.Name, e.Name))
                 {
-                    ReportCompareJsonError(value, $"Property name mismatch: found='{v.Name}' expected='{e.Name}");
+                    ReportCompareJsonError(value, $"Property name mismatch: found='{v.Name}' expected='{e.Name}'");
                 }
             }
 
@@ -147,6 +150,7 @@ namespace UnitTests
                 writer.Formatting = Formatting.Indented;
                 jtoken.WriteTo(writer);
             }
+            Console.Out.WriteLine();
         }
 
         static void DumpYamlReader(string filename)

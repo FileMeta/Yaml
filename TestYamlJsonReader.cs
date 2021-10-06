@@ -21,8 +21,9 @@ namespace UnitTests
             var testDir = Path.GetFullPath("./TestDocs");
 
             // When debugging, put first test here
-            //DumpTmlYaml(Path.Combine(testDir, "2CMS.tml"));
-            //PerformTmlTest(Path.Combine(testDir, "2CMS.tml"));
+            //DumpTmlYaml(Path.Combine(testDir, "2JQS-mod.tml"));
+            //DumpTmlJson(Path.Combine(testDir, "2JQS-mod.tml"));
+            //PerformTmlTest(Path.Combine(testDir, "2JQS-mod.tml"));
 
             Console.WriteLine("Raw Tests:");
             foreach (var yamlFilename in Directory.GetFiles(testDir, "*.yml"))
@@ -71,5 +72,16 @@ namespace UnitTests
                 tml.DumpYaml();
             }
         }
+
+        static void DumpTmlJson(string filename)
+        {
+            using (var tml = new TestML())
+            {
+                tml.Load(filename);
+                Console.WriteLine($"  {Path.GetFileName(filename)}: {tml.Title}");
+                tml.DumpJson();
+            }
+        }
+
     }
 }
