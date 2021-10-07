@@ -448,6 +448,7 @@ namespace YamlInternal
     {
         Null,          // Not a valid token
         BetweenDocs,   // At the beginning of the file or between documents
+        NewLine,       // A new line that's not embedded in a scalar - indentation updated
         Scalar,        // A string (typically a key or a value)
         KeyPrefix,     // The '? ' string indicating a subsequent key (optional)
         ValuePrefix,   // The ': ' string indicating a subsequent value
@@ -519,14 +520,17 @@ namespace YamlInternal
                         m_tokenType = TokenType.EndDoc;
                         return;
                     }
-                    else if (ReadMatch("---\n"))
+                    
+                    if (ReadMatch("---\n"))
                     {
                         ChUnread('\n'); // Leave the newline for the outer loop
                         m_tokenType = TokenType.BeginDoc;
                         return;
                     }
 
-                    continue;
+                    SkipInlineWhitespace(); // Read whitespace to calculate indentation
+                    m_tokenType = TokenType.NewLine;
+                    return;
                 }
 
                 else if (ch == '#')
