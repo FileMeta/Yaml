@@ -54,12 +54,6 @@ namespace FileMeta.Yaml
                     return entry.Token != JsonToken.Undefined;
                 }
 
-                // TODO: Update the state machine. The basic framework was inherited from
-                // NewtonSoft Json.Net but YAML is different. Most likely, ParseValue and
-                // ParseObject can be merged.
-                // Regardless, the task is to interpret the next token in context of the
-                // last token emitted and the type of collection at the top of the stack.
-
                 // Before anything breaks, it must call m_lexer.MoveNext(), call EnqueueToken, or do both.
                 // Otherwise this becomes an infinite loop.
                 switch (m_lexer.TokenType)
@@ -83,13 +77,6 @@ namespace FileMeta.Yaml
                             if (indentation < m_currentIndent)
                             {
                                 EndElements(m_lexer.Indentation);
-                            }
-                            if (indentation > m_currentIndent)
-                            {
-                                if (ExpectingKey)
-                                {
-                                    m_lexer.ReportError("Indentation mismatch.");
-                                }
                             }
                             if (m_stackTop != null && m_stackTop.Type == StackEntryType.Sequence
                                 && indentation <= m_currentIndent
@@ -120,16 +107,6 @@ namespace FileMeta.Yaml
                         break;
 
                     case YamlInternal.TokenType.Scalar:
-                        if (ExpectingKey)
-                        {
-                            EnqueueToken(JsonToken.PropertyName, m_lexer.TokenValue);
-                            m_lexer.MoveNext();
-                            if (m_lexer.TokenType != YamlInternal.TokenType.ValuePrefix)
-                            {
-                                m_lexer.ReportError("Expected ':' (colon).");
-                            }
-                        }
-                        else
                         {
                             // Save and read ahead so we know what to do
                             var scalar = m_lexer.TokenValue;
@@ -142,6 +119,11 @@ namespace FileMeta.Yaml
                             }
                             else
                             {
+                                if (ExpectingKey)
+                                {
+                                    m_lexer.ReportError("Expected Key");
+                                    EnqueueKey(indent, "err");
+                                }
                                 EnqueueToken(JsonToken.String, scalar);
                             }
                         }
@@ -184,6 +166,7 @@ namespace FileMeta.Yaml
                 // Otherwise, base it on the preceding token
                 switch (TokenType)
                 {
+                    case JsonToken.None:
                     case JsonToken.StartObject:
                     case JsonToken.EndObject:
                     case JsonToken.EndArray:
@@ -195,19 +178,22 @@ namespace FileMeta.Yaml
             }
         }
 
-        void EnqueueKey(int indent, string value)
+        void EnqueueKey(int indent, string keyName)
         {
             if (indent > m_currentIndent)
             {
                 // New Object
                 StartElement(indent, JsonToken.StartObject);
-                EnqueueToken(JsonToken.PropertyName, value);
+                EnqueueToken(JsonToken.PropertyName, keyName);
             }
             else if (indent == m_currentIndent)
             {
-                // Empty Value (for the previous element)
-                EnqueueToken(JsonToken.String, string.Empty);
-                EnqueueToken(JsonToken.PropertyName, value);
+                if (!ExpectingKey)
+                {
+                    // Empty Value (for the previous element)
+                    EnqueueToken(JsonToken.String, string.Empty);
+                }
+                EnqueueToken(JsonToken.PropertyName, keyName);
             }
             else
             {

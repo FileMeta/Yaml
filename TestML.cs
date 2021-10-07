@@ -1,4 +1,7 @@
-﻿using System;
+﻿// Uncomment to enable debugging tools
+//#define TRACE_READERS
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,9 +13,6 @@ using FileMeta.Yaml;
 
 namespace UnitTests
 {
-
-
-
     /// <summary>
     /// Perform a testml test comparing YAML to the equivalent JSON
     /// </summary>
@@ -104,12 +104,26 @@ namespace UnitTests
 
             if (!m_shouldError)
             {
+#if TRACE_READERS
+                Console.WriteLine("  JSON Reader:");
+                TraceJson();
+                Console.WriteLine();
+                Console.WriteLine("  YAML Reader:");
+                TraceYaml();
+                Console.WriteLine();
+#endif
                 m_yamlStream.Position = 0;
                 m_jsonStream.Position = 0;
-                CompareYamlToJson.Compare(m_yamlStream, yamlOptions, m_jsonStream); ;
+                CompareYamlToJson.Compare(m_yamlStream, yamlOptions, m_jsonStream);
             }
             else
             {
+#if TRACE_READERS
+                Console.WriteLine("  YAML Reader:");
+                TraceYaml();
+                Console.WriteLine();
+#endif
+                m_yamlStream.Position = 0;
                 AssertParseError(m_yamlStream, yamlOptions);
             }
         }
@@ -172,6 +186,39 @@ namespace UnitTests
                 m_yamlStream.Dispose();
                 m_yamlStream = null;
             }
+        }
+
+        void TraceYaml()
+        {
+            var yamlOptions = new YamlReaderOptions();
+            yamlOptions.MergeDocuments = true;
+            yamlOptions.IgnoreTextOutsideDocumentMarkers = false;
+            yamlOptions.CloseInput = false;
+            yamlOptions.ThrowOnError = false;
+
+            m_yamlStream.Position = 0;
+            using (var reader = new YamlJsonReader(new StreamReader(m_yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
+            {
+                Trace(reader);
+            }
+        }
+
+        void TraceJson()
+        {
+            m_jsonStream.Position = 0;
+            using (var reader = new StreamReader(m_jsonStream, Encoding.UTF8, true, 512, true))
+            {
+                Trace(new JsonTextReader(reader));
+            }
+        }
+
+        static void Trace(JsonReader reader)
+        {
+            while (reader.Read())
+            {
+                Console.WriteLine($"({reader.TokenType}, \"{reader.Value}\")");
+            }
+            Console.WriteLine();
         }
 
         static readonly Encoding s_UTF8 = new UTF8Encoding(false); // UTF8 with no byte-order mark.

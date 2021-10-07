@@ -1,5 +1,4 @@
 ﻿// Uncomment to enable debugging tools
-//#define TRACE_READERS
 //#define TRACE_YAML_TO_JSON
 
 using System;
@@ -33,23 +32,6 @@ namespace UnitTests
 
         public static void Compare(Stream yamlStream, YamlReaderOptions yamlOptions, Stream jsonStream)
         {
-            // For debugging, trace the JSON and then the YAML readers
-#if TRACE_READERS
-            Console.WriteLine("  JSON Reader:");
-            using (var reader = new StreamReader(jsonStream, Encoding.UTF8, true, 512, true))
-            {
-                Dump(new JsonTextReader(reader));
-            }
-            Console.WriteLine();
-            Console.WriteLine("  YAML Reader:");
-            using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
-            {
-                Dump(reader);
-            }
-            yamlStream.Position = 0;
-            jsonStream.Position = 0;
-#endif
-
             // Parse the YAML into a structure
             JToken fromYaml;
             using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
@@ -153,35 +135,6 @@ namespace UnitTests
             Console.Out.WriteLine();
         }
 
-        static void DumpYamlReader(string filename)
-        {
-            var yamlOptions = new YamlReaderOptions();
-            yamlOptions.MergeDocuments = true;
-            yamlOptions.IgnoreTextOutsideDocumentMarkers = true;
-            yamlOptions.CloseInput = true;
-            using (var reader = new YamlJsonReader(new StreamReader(filename, Encoding.UTF8, true), yamlOptions))
-            {
-                Dump(reader);
-            }
-        }
-
-        static void DumpJsonReader(string filename)
-        {
-            using (var reader = new StreamReader(filename, Encoding.UTF8, true))
-            {
-                Dump(new JsonTextReader(reader));
-            }
-        }
-
-        static void Dump(JsonReader reader)
-        {
-            while (reader.Read())
-            {
-                Console.WriteLine($"({reader.TokenType}, \"{reader.Value}\")");
-            }
-            Console.WriteLine();
-        }
     }
-
 }
 
