@@ -347,12 +347,22 @@ namespace FileMeta.Yaml
                             return false;
                         }
 
+                    case TokenType.NewLine:
+                        m_lexer.MoveNext();
+                        continue;
+
                     case TokenType.EOF:
                         m_current = new KeyValuePair<string, string>(); // Clear the current value
                         return false;
                 }
             }
             while (key == null);
+
+            // Skip any newlines
+            while (m_lexer.TokenType == TokenType.NewLine)
+            {
+                m_lexer.MoveNext();
+            }
 
             // Handle Expected ValuePrefix ': '
             if (m_lexer.TokenType != TokenType.ValuePrefix)
@@ -362,6 +372,12 @@ namespace FileMeta.Yaml
                 return true;
             }
             m_lexer.MoveNext();
+
+            // Skip any newlines
+            while (m_lexer.TokenType == TokenType.NewLine)
+            {
+                m_lexer.MoveNext();
+            }
 
             if (m_lexer.TokenType != TokenType.Scalar)
             {
