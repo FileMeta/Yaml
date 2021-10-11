@@ -137,6 +137,9 @@ namespace UnitTests
                 using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
                 {
                     fromYaml = JToken.ReadFrom(reader);
+
+                    // Read any remaining content (may throw an error)
+                    while (reader.Read()) ;
                 }
             }
             catch (YamlReaderException)
@@ -200,6 +203,15 @@ namespace UnitTests
             using (var reader = new YamlJsonReader(new StreamReader(m_yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
             {
                 Trace(reader);
+
+                if (reader.ErrorOccurred)
+                {
+                    Console.WriteLine("YamlJsonReader errors:");
+                    foreach(var err in reader.Errors)
+                    {
+                        Console.WriteLine("  " + err.Message);
+                    }
+                }
             }
         }
 

@@ -1,0 +1,7 @@
+=== One String Value
+
+--- in-yaml
+value
+
+--- in-json
+"value"

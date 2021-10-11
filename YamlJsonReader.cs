@@ -88,12 +88,9 @@ namespace FileMeta.Yaml
                         break;
 
                     case YamlInternal.TokenType.ValuePrefix:
-                        // If expecting a key, then that key is empty.
-                        if (ExpectingKey)
-                        {
-                            // Write out an empty key
-                            EnqueueKey(m_lexer.Indentation, string.Empty);
-                        }
+                        // This is a bare ValuePrefix without a leading scalar
+                        // Write out an empty key
+                        EnqueueKey(m_lexer.Indentation, string.Empty);
                         m_lexer.MoveNext();
                         break;
 
@@ -116,13 +113,14 @@ namespace FileMeta.Yaml
                             if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
                             {
                                 EnqueueKey(indent, scalar);
+                                m_lexer.MoveNext(); // Use up the ValuePrefix
                             }
                             else
                             {
                                 if (ExpectingKey)
                                 {
                                     m_lexer.ReportError("Expected Key");
-                                    EnqueueKey(indent, "err");
+                                    EnqueueKey(indent, string.Empty);
                                 }
                                 EnqueueToken(JsonToken.String, scalar);
                             }
@@ -156,6 +154,32 @@ namespace FileMeta.Yaml
             }
         }
 
+        /// <summary>
+        /// True if any errors occurred while reading the YAML input
+        /// </summary>
+        /// <remarks>
+        /// If <see cref="YamlReaderOptions.ThrowOnError"/> is false, then you should
+        /// check this value following the read to determine if any syntax errors were
+        /// reported.
+        /// </remarks>
+        public bool ErrorOccurred
+        {
+            get => m_lexer.ErrorOccurred;
+        }
+
+        /// <summary>
+        /// A list of <see cref="YamlReaderException"/> listing errors that occurred.
+        /// </summary>
+        /// <remarks>
+        /// If <see cref="YamlReaderOptions.ThrowOnError"/> is false, and
+        /// <see cref="ErrorOccurred"/> is true then this value will have a list of
+        /// errors. Otherwise it will be null.
+        /// </remarks>
+        public IReadOnlyList<YamlReaderException> Errors
+        {
+            get => m_lexer.Errors;
+        }
+
         bool ExpectingKey
         {
             get
@@ -166,7 +190,6 @@ namespace FileMeta.Yaml
                 // Otherwise, base it on the preceding token
                 switch (TokenType)
                 {
-                    case JsonToken.None:
                     case JsonToken.StartObject:
                     case JsonToken.EndObject:
                     case JsonToken.EndArray:
