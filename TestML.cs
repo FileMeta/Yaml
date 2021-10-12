@@ -49,10 +49,17 @@ namespace UnitTests
                         ReadSection(reader, ref m_yamlStream);
                     }
 
-                    if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
+                    if (line.Trim().Equals("--- in-yaml(<)", StringComparison.Ordinal))
+                    {
+                        ReadSectionIndented(reader, ref m_yamlStream);
+                    }
+
+
+                        if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_jsonStream);
                     }
+
 
                     if (line.Trim().Equals("--- error", StringComparison.Ordinal))
                     {
@@ -64,7 +71,7 @@ namespace UnitTests
 
         static void ReadSection (TextReader reader, ref Stream dst)
         {
-            // Prep the stream stream
+            // Prep the destination stream
             if (dst != null)
             {
                 dst.Dispose();
@@ -85,6 +92,64 @@ namespace UnitTests
                 }
             }
             dst.Position = 0;
+        }
+
+        static void ReadSectionIndented(TextReader reader, ref Stream dst)
+        {
+            // Prep the destination stream
+            if (dst != null)
+            {
+                dst.Dispose();
+            }
+            dst = new MemoryStream();
+
+            // Read the Section
+            using (var writer = new StreamWriter(dst, s_UTF8, 512, true))
+            {
+                int indentation = 0;
+                for (; ; )
+                {
+                    int lineIndent = GetIndentation(reader);
+                    if (indentation == 0)
+                    {
+                        if (lineIndent <= 0)
+                            throw new InvalidOperationException("First line of TestML indented section must indented and not empty.");
+                        indentation = lineIndent;
+                    }
+                    else if (lineIndent < indentation)
+                    {
+                        break;
+                    }
+
+                    string line = reader.ReadLine();
+                    if (line == null) break;
+                    line = line.Replace("<SPC>", " ");
+
+                    // Take care of indentation
+                    for (int i=indentation; i<lineIndent; ++i)
+                    {
+                        writer.Write(' ');
+                    }
+
+                    // Write the line
+                    writer.WriteLine(line);
+                }
+            }
+            dst.Position = 0;
+        }
+
+        static int GetIndentation(TextReader reader)
+        {
+            int indent = 0;
+            for (; ; )
+            {
+                int ch = reader.Peek();
+                if (ch < 0) return 0;
+                if (ch != ' ' && ch != '\t') break;
+                reader.Read();
+                ++indent;
+            }
+            return indent;
         }
 
         /// <summary>
