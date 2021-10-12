@@ -54,12 +54,15 @@ namespace UnitTests
                         ReadSectionIndented(reader, ref m_yamlStream);
                     }
 
-
-                        if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
+                    if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_jsonStream);
                     }
 
+                    if (line.Trim().Equals("--- in-json(<)", StringComparison.Ordinal))
+                    {
+                        ReadSectionIndented(reader, ref m_jsonStream);
+                    }
 
                     if (line.Trim().Equals("--- error", StringComparison.Ordinal))
                     {
