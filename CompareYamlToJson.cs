@@ -71,6 +71,10 @@ namespace UnitTests
                     case JTokenType.Boolean:
                         value = new JValue(string.Compare((string)value, "true", StringComparison.OrdinalIgnoreCase));
                         break;
+                    case JTokenType.Null:
+                        // In this case, we convert the expected value rather than the matching value
+                        expected = new JValue(string.Empty);
+                        break;
                 }
             }
 
