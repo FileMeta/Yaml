@@ -25,12 +25,6 @@ namespace UnitTests
             //DumpTmlJson(Path.Combine(testDir, "2JQS-mod.tml"));
             //PerformTmlTest(Path.Combine(testDir, "236B.tml"));
 
-            Console.WriteLine("Raw Tests:");
-            foreach (var yamlFilename in Directory.GetFiles(testDir, "*.yml"))
-            {
-                PerformRawTest(yamlFilename);
-            }
-
             Console.WriteLine("TestML Tests:");
             foreach(var tmlFilename in Directory.GetFiles(testDir, "*.tml"))
             {

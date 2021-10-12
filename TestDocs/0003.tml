@@ -1,0 +1,15 @@
+=== Basic Mapping
+
+--- in-yaml(<)
+	---
+	one: OneValue
+	two: TwoValue
+	three: ThreeValue
+	...
+
+--- in-json
+{
+  "one": "OneValue",
+  "two": "TwoValue",
+  "three": "ThreeValue"
+}
