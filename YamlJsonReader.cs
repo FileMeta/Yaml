@@ -61,6 +61,8 @@ namespace FileMeta.Yaml
                     case YamlInternal.TokenType.Null:
                     case YamlInternal.TokenType.BetweenDocs:
                     case YamlInternal.TokenType.BeginDoc:
+                    case YamlInternal.TokenType.Tag:
+                    case YamlInternal.TokenType.Directive:
                         m_lexer.MoveNext();
                         break;
 
@@ -144,11 +146,6 @@ namespace FileMeta.Yaml
                     case YamlInternal.TokenType.EOF:
                         EndElements(-1);
                         EnqueueToken(JsonToken.Undefined); // End of file
-                        break;
-
-                    // This parser simply ignores tags.
-                    case YamlInternal.TokenType.Tag:
-                        m_lexer.MoveNext();
                         break;
                 }
             }

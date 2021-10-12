@@ -465,6 +465,7 @@ namespace YamlInternal
         Null,          // Not a valid token
         BetweenDocs,   // At the beginning of the file or between documents
         NewLine,       // A new line that's not embedded in a scalar - indentation updated
+        Directive,     // A YAML directive
         Scalar,        // A string (typically a key or a value)
         KeyPrefix,     // The '? ' string indicating a subsequent key (optional)
         ValuePrefix,   // The ': ' string indicating a subsequent value
@@ -477,8 +478,16 @@ namespace YamlInternal
 
     internal class YamlLexer : IDisposable
     {
+        enum LexerState
+        {
+            BetweenDocs,
+            InDoc
+        }
+
         YamlReaderOptions m_options;
         TextReader m_reader;
+
+        LexerState m_state = LexerState.BetweenDocs;
 
         // Current Token
         TokenType m_tokenType;
@@ -533,6 +542,7 @@ namespace YamlInternal
                     if (ReadMatch("...\n"))
                     {
                         ChUnread('\n'); // Leave the newline for the outer loop
+                        m_state = LexerState.BetweenDocs;
                         m_tokenType = TokenType.EndDoc;
                         return;
                     }
@@ -540,12 +550,20 @@ namespace YamlInternal
                     if (ReadMatch("---\n"))
                     {
                         ChUnread('\n'); // Leave the newline for the outer loop
+                        m_state = LexerState.InDoc;
                         m_tokenType = TokenType.BeginDoc;
                         return;
                     }
 
                     SkipInlineWhitespace(); // Read whitespace to calculate indentation
                     m_tokenType = TokenType.NewLine;
+                    return;
+                }
+
+                else if (ch == '%' && m_state == LexerState.BetweenDocs)
+                {
+                    ReadDirective();
+                    Debug.Assert(m_tokenType == TokenType.Directive);
                     return;
                 }
 
@@ -558,16 +576,23 @@ namespace YamlInternal
 
                 else if (ch == '\'' || ch == '"')
                 {
+                    m_state = LexerState.InDoc;
                     ReadQuoteScalar();
+                    Debug.Assert(m_tokenType == TokenType.Scalar);
+                    return;
                 }
 
                 else if (ch == '|' || ch == '>')
                 {
+                    m_state = LexerState.InDoc;
                     ReadBlockScalar();
+                    Debug.Assert(m_tokenType == TokenType.Scalar);
+                    return;
                 }
 
                 else if (ReadPrefix('?')) // Key Prefix
                 {
+                    m_state = LexerState.InDoc;
                     m_tokenType = TokenType.KeyPrefix;
                     return;
                 }
@@ -575,26 +600,31 @@ namespace YamlInternal
                 else if (ReadPrefix(':')) // value prefix
                 {
                     m_tokenType = TokenType.ValuePrefix;
+                    m_state = LexerState.InDoc;
                     return;
                 }
 
                 else if (ReadPrefix('-')) // Sequence entry prefix
                 {
                     m_tokenType = TokenType.SequenceIndicator;
+                    m_state = LexerState.InDoc;
                     return;
                 }
 
                 else if (ch == '!')
                 {
+                    m_state = LexerState.InDoc;
                     ReadTag();
+                    Debug.Assert(m_tokenType == TokenType.Tag);
+                    return;
                 }
 
                 else
                 {
                     ReadSimpleScalar();
+                    Debug.Assert(m_tokenType == TokenType.Scalar);
+                    return;
                 }
-
-                if (m_tokenType != TokenType.Null) return;
             }
         }
 
@@ -920,11 +950,34 @@ namespace YamlInternal
             {
                 sb.Append(ChRead());
                 ch = ChPeek();
-                if (ch == '\0' || IsWhiteSpace(ch)) break;
+                if (ch == '\0' || ch == '#' || IsWhiteSpace(ch)) break;
             }
 
-            // Return the scalar
+            // Return the tag
             m_tokenType = TokenType.Tag;
+            m_token = sb.ToString();
+        }
+
+        private void ReadDirective()
+        {
+            char ch;
+            var sb = new StringBuilder();
+            for (; ; )
+            {
+                sb.Append(ChRead());
+                ch = ChPeek();
+                if (ch == '\0' || ch == '#' || ch == '\n') break;
+            }
+
+            // Trim trailing whitespace
+            {
+                int len = sb.Length;
+                while (len > 0 && IsWhiteSpace(sb[len - 1])) --len;
+                sb.Length = len;
+            }
+
+            // Return the directive
+            m_tokenType = TokenType.Directive;
             m_token = sb.ToString();
         }
 
