@@ -23,7 +23,7 @@ namespace UnitTests
             // When debugging, put first test here
             //DumpTmlYaml(Path.Combine(testDir, "2JQS-mod.tml"));
             //DumpTmlJson(Path.Combine(testDir, "2JQS-mod.tml"));
-            //PerformTmlTest(Path.Combine(testDir, "236B.tml"));
+            //PerformTmlTest(Path.Combine(testDir, "236B.tml"), true);
 
             Console.WriteLine("TestML Tests:");
             foreach(var tmlFilename in Directory.GetFiles(testDir, "*.tml"))
@@ -47,10 +47,11 @@ namespace UnitTests
             CompareYamlToJson.Compare(yamlFilename, jsonFilename);
         }
 
-        static void PerformTmlTest(string filename)
+        static void PerformTmlTest(string filename, bool trace = false)
         {
             using (var tml = new TestML())
             {
+                tml.Trace = trace;
                 tml.Load(filename);
                 Console.WriteLine($"  {Path.GetFileName(filename)}: {tml.Title}");
                 tml.PerformTest();

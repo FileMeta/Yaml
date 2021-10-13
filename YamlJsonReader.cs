@@ -240,6 +240,7 @@ namespace FileMeta.Yaml
             }
             else
             {
+                // TODO: Once everything is fully tested, replace this with an appropriate error report.
                 Debugger.Break();
                 throw new ApplicationException("Not sure how we get here.");
             }
