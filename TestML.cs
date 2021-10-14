@@ -118,7 +118,7 @@ namespace UnitTests
                             throw new InvalidOperationException("First line of TestML indented section must indented and not empty.");
                         indentation = lineIndent;
                     }
-                    else if (lineIndent < indentation)
+                    else if (lineIndent < indentation && reader.Peek() != '\r' && reader.Peek() != '\n')
                     {
                         break;
                     }
