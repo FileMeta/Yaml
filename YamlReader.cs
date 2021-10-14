@@ -878,6 +878,11 @@ namespace YamlInternal
                         {
                             sb.Append(' ');
                         }
+                        else if (m_lineIndent < indent && chomp != '-')
+                        {
+                            // Final newline
+                            sb.Append('\n');
+                        }
                     }
                     else
                     {
@@ -891,8 +896,7 @@ namespace YamlInternal
                     // Ends with a line of lesser indent
                     if (m_lineIndent < indent)
                     {
-                        sb.Append('\n'); // Final newline
-                        // TODO: This may not be necessary. Find out.
+                        // TODO: This may not be necessary. Find out through testing and analysis
                         ChUnread(' ', m_lineIndent); // Go back to the beginning of the line
                         break;
                     }
