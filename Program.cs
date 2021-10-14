@@ -25,6 +25,7 @@ namespace UnitTests
             try
             {
                 TestYamlJsonReader.PerformTests();
+                Console.WriteLine();
 
                 m_successCount = 0;
                 m_failureCount = 0;

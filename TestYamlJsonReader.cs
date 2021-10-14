@@ -18,18 +18,26 @@ namespace UnitTests
         public static void PerformTests()
         {
             Console.WriteLine("TestYamlJsonReader");
-            var testDir = Path.GetFullPath("./TestDocs");
 
             // When debugging, put first test here
             //PerformTmlTest(Path.Combine(testDir, "4CQQ.tml"), true);
 
-            Console.WriteLine("TestML Tests:");
-            foreach(var tmlFilename in Directory.GetFiles(testDir, "*.tml"))
-            {
-                PerformTmlTest(tmlFilename);
-            }
+            PerformTests(Path.GetFullPath("./TestDocs"));
+        }
 
-            Console.WriteLine("TestYamlJsonReader Success.");
+        static void PerformTests(string testDir)
+        {
+            int tests = 0;
+            int passed = 0;
+
+            Console.WriteLine($"Performing tests in: {testDir}");
+            foreach (var tmlFilename in Directory.GetFiles(testDir, "*.tml"))
+            {
+                ++tests;
+                if (PerformTmlTest(tmlFilename)) ++passed;
+            }
+            Console.WriteLine($"Passed {passed} of {tests} tests.");
+            Console.WriteLine((passed >= tests) ? "Success!" : "Failure.");
         }
 
         static void PerformRawTest(string yamlFilename)
@@ -45,15 +53,24 @@ namespace UnitTests
             CompareYamlToJson.Compare(yamlFilename, jsonFilename);
         }
 
-        static void PerformTmlTest(string filename, bool trace = false)
+        static bool PerformTmlTest(string filename, bool trace = false)
         {
-            using (var tml = new TestML())
+            try
             {
-                tml.Trace = trace;
-                tml.Load(filename);
-                Console.WriteLine($"  {Path.GetFileName(filename)}: {tml.Title}");
-                tml.PerformTest();
+                using (var tml = new TestML())
+                {
+                    tml.Trace = trace;
+                    tml.Load(filename);
+                    Console.WriteLine($"  {Path.GetFileName(filename)}: {tml.Title}");
+                    tml.PerformTest();
+                }
             }
+            catch (Exception err)
+            {
+                Console.WriteLine(err.ToString());
+                return false;
+            }
+            return true;
         }
 
         static void DumpTmlYaml(string filename)
