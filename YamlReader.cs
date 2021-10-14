@@ -487,7 +487,9 @@ namespace YamlInternal
         YamlReaderOptions m_options;
         TextReader m_reader;
 
+        // Lexing state
         LexerState m_state = LexerState.BetweenDocs;
+        int m_keyIndent = 0;
 
         // Current Token
         TokenType m_tokenType;
@@ -536,27 +538,25 @@ namespace YamlInternal
 
                 else if (ch == '\n')
                 {
-                    // Skip the newline
                     ChRead();
-
-                    if (ReadMatch("...\n"))
-                    {
-                        ChUnread('\n'); // Leave the newline for the outer loop
-                        m_state = LexerState.BetweenDocs;
-                        m_tokenType = TokenType.EndDoc;
-                        return;
-                    }
-                    
-                    if (ReadMatch("---\n"))
-                    {
-                        ChUnread('\n'); // Leave the newline for the outer loop
-                        m_state = LexerState.InDoc;
-                        m_tokenType = TokenType.BeginDoc;
-                        return;
-                    }
-
                     SkipInlineWhitespace(); // Read whitespace to calculate indentation
                     m_tokenType = TokenType.NewLine;
+                    return;
+                }
+
+                else if (m_linePos == 0 && ReadMatch("...\n"))
+                {
+                    ChUnread('\n'); // Leave the trailing newline for the outer loop
+                    m_state = LexerState.BetweenDocs;
+                    m_tokenType = TokenType.EndDoc;
+                    return;
+                }
+
+                else if (m_linePos == 0 && ReadMatch("---\n"))
+                {
+                    ChUnread('\n'); // Leave the trailing newline for the outer loop
+                    m_state = LexerState.InDoc;
+                    m_tokenType = TokenType.BeginDoc;
                     return;
                 }
 
@@ -601,6 +601,7 @@ namespace YamlInternal
                 {
                     m_tokenType = TokenType.ValuePrefix;
                     m_state = LexerState.InDoc;
+                    m_keyIndent = m_lineIndent;
                     return;
                 }
 
@@ -608,6 +609,7 @@ namespace YamlInternal
                 {
                     m_tokenType = TokenType.SequenceIndicator;
                     m_state = LexerState.InDoc;
+                    m_keyIndent = m_lineIndent;
                     return;
                 }
 
@@ -621,7 +623,7 @@ namespace YamlInternal
 
                 else
                 {
-                    ReadSimpleScalar();
+                    ReadPlainScalar();
                     Debug.Assert(m_tokenType == TokenType.Scalar);
                     return;
                 }
@@ -913,23 +915,66 @@ namespace YamlInternal
             m_token = sb.ToString();          
         }
 
-        private void ReadSimpleScalar()
+        private void ReadPlainScalar()
         {
-            char ch;
             var sb = new StringBuilder();
-            for (;;)
+
+            bool endString = false;
+            while (!endString)
             {
-                ch = ChRead();
-                if (ch == '\0' || ch == '\n') break; // EOF or Newline
-                if ((ch == ' ' || ch == '\t') && ChPeek() == '#') break; // Comment
-                if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek())) break; // Key or value indicator
+                var ch = ChRead();
+                if (ch == '\0') break; // EOF
+                if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek()))
+                {
+                    ChUnread(ch);
+                    break; // Key or value indicator
+                }
                 // TODO: Make key or value indicator sensitive to whether a key or a value is expected.
                 // E.g. an embedded colon is OK in a value but not in a key.
-                sb.Append(ch);
+
+                // Collapse whitespace
+                if (IsWhiteSpace(ch))
+                {
+                    // Skip all whitespace and newlines
+                    int newlines = 0;
+                    for (; ; )
+                    {
+                        if (ch == '\n')
+                        {
+                            if (PeekIndent() <= m_keyIndent)
+                            {
+                                ChUnread('\n');
+                                endString = true;
+                                break;
+                            }
+                            ++newlines;
+                        }
+                        if (!IsWhiteSpace(ChPeek())) break;
+                        ch = ChRead();
+                    }
+
+                    if (newlines > 1)
+                    {
+                        sb.Append('\n', newlines - 1);
+                    }
+                    else if (ChPeek() == '#') // Comment
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        sb.Append(' ');
+                    }
+                }
+
+                else
+                {
+                    sb.Append(ch);
+                }
             }
-            if (ch != '\0') ChUnread(ch);
 
             // Strip trailing whitespace
+            // TODO: Test whether this is necessary. The new whitespace handling should prevent trailing whitespace
             int end;
             for (end = sb.Length; end > 0; --end)
             {
@@ -1087,6 +1132,24 @@ namespace YamlInternal
             return count;
         }
 
+        // Return the amount of indent or int.MaxValue if the next line is blank
+        private int PeekIndent()
+        {
+
+            int count = 0;
+            char ch;
+            for (; ; )
+            {
+                ch = ChPeek();
+                if (ch != ' ' && ch != '\t') break;
+                ChRead();
+                ++count;
+            }
+            bool blankLine = (ch == '\n');
+            for (int i = 0; i < count; ++i) ChUnread(' ');
+            return blankLine ? int.MaxValue : count;
+        }
+
         #endregion
 
         #region Character Reader
@@ -1125,7 +1188,7 @@ namespace YamlInternal
             {
                 char ch = ChRead();
                 if (ch == '\0') return '\0';
-                m_readBuf.Push(ch);
+                ChUnread(ch);
                 return ch;
             }
             return m_readBuf.Peek();
@@ -1293,7 +1356,12 @@ namespace YamlInternal
             return (ch == ' ' || ch == '\t' || ch == '\n');
         }
 
-        #endregion Chacter Types
+        static bool IsSpaceOrTab(char ch)
+        {
+            return (ch == ' ' || ch == '\t');
+        }
+
+        #endregion Character Types
 
         #region Error Handling
 
