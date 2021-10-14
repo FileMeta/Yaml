@@ -1,7 +1,8 @@
 === Block Mapping with Missing Keys
 --- from: NimYAML tests
 --- tags: duplicate-key mapping empty-key
---- comment: Modified by bredd to include the "in-json" section
+
+Modified by bredd to include the "in-json" section
 
 --- in-yaml
 : a

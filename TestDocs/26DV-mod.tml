@@ -1,7 +1,8 @@
 === Whitespace around colon in mappings
 --- from: @perlpunk
 --- tags: alias mapping whitespace
---- comment: Modified by bredd to remove aliases which are not supported by the FileMeta Yaml implementation.
+
+Modified by bredd to remove aliases which are not supported by the FileMeta Yaml implementation.
 
 --- in-yaml
 "top1" :<SPC>
