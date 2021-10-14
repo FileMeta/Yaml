@@ -89,7 +89,7 @@ namespace UnitTests
                 var e = (JProperty)expected;
                 if (!string.Equals(v.Name, e.Name))
                 {
-                    ReportCompareJsonError(value, $"Property name mismatch: found='{v.Name}' expected='{e.Name}'");
+                    ReportCompareJsonError(value, $"Property name mismatch: found='{Encode(v.Name)}' expected='{Encode(e.Name)}'");
                 }
             }
 
@@ -119,7 +119,7 @@ namespace UnitTests
 
                 if (!v.Value.Equals(e.Value))
                 {
-                    ReportCompareJsonError(value, $"Value mismatch: found='{v.Value}' expected='{e.Value}'");
+                    ReportCompareJsonError(value, $"Value mismatch: found='{Encode(v.Value)}' expected='{Encode(e.Value)}'");
                 }
             }
         }
@@ -127,6 +127,11 @@ namespace UnitTests
         static void ReportCompareJsonError(JToken token, string msg)
         {
             throw new UnitTestException($"Error at '{token.Path}': {msg}");
+        }
+
+        static string Encode(Object obj)
+        {
+            return obj.ToString().Replace("\n", "\\n").Replace("\t", "\\t");
         }
 
         static void Dump(JToken jtoken)
