@@ -21,9 +21,7 @@ namespace UnitTests
             var testDir = Path.GetFullPath("./TestDocs");
 
             // When debugging, put first test here
-            //DumpTmlYaml(Path.Combine(testDir, "2JQS-mod.tml"));
-            //DumpTmlJson(Path.Combine(testDir, "2JQS-mod.tml"));
-            //PerformTmlTest(Path.Combine(testDir, "236B.tml"), true);
+            //PerformTmlTest(Path.Combine(testDir, "4CQQ.tml"), true);
 
             Console.WriteLine("TestML Tests:");
             foreach(var tmlFilename in Directory.GetFiles(testDir, "*.tml"))

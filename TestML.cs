@@ -30,7 +30,7 @@ namespace UnitTests
 
         public void Load(string testmlFilename)
         {
-            using (var reader = new StreamReader(testmlFilename, Encoding.UTF8, true))
+            using (var reader = new LineReader(new StreamReader(testmlFilename, Encoding.UTF8, true)))
             {
                 for (; ; )
                 {
@@ -46,32 +46,37 @@ namespace UnitTests
                     if (line.Trim().Equals("--- in-yaml", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_yamlStream);
+                        continue;
                     }
 
                     if (line.Trim().Equals("--- in-yaml(<)", StringComparison.Ordinal))
                     {
                         ReadSectionIndented(reader, ref m_yamlStream);
+                        continue;
                     }
 
                     if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_jsonStream);
+                        continue;
                     }
 
                     if (line.Trim().Equals("--- in-json(<)", StringComparison.Ordinal))
                     {
                         ReadSectionIndented(reader, ref m_jsonStream);
+                        continue;
                     }
 
                     if (line.Trim().Equals("--- error", StringComparison.Ordinal))
                     {
                         m_shouldError = true;
+                        continue;
                     }
                 }
             }
         }
 
-        static void ReadSection (TextReader reader, ref Stream dst)
+        static void ReadSection (LineReader reader, ref Stream dst)
         {
             // Prep the destination stream
             if (dst != null)
@@ -85,18 +90,19 @@ namespace UnitTests
             {
                 for (; ; )
                 {
-                    var line = reader.ReadLine();
+                    var line = reader.PeekLine();
                     if (line == null) break;
+                    if (line.StartsWith("---")) break;
+                    reader.ReadLine();
 
                     line = line.Replace("<SPC>", " ");
                     writer.WriteLine(line);
-                    if (line.Length == 0) break;
                 }
             }
             dst.Position = 0;
         }
 
-        static void ReadSectionIndented(TextReader reader, ref Stream dst)
+        static void ReadSectionIndented(LineReader reader, ref Stream dst)
         {
             // Prep the destination stream
             if (dst != null)
@@ -111,27 +117,27 @@ namespace UnitTests
                 int indentation = 0;
                 for (; ; )
                 {
-                    int lineIndent = GetIndentation(reader);
+                    var line = reader.PeekLine();
+                    if (line == null) break;
+
+                    int lineIndent = GetIndentation(line);
                     if (indentation == 0)
                     {
-                        if (lineIndent <= 0)
+                        if (lineIndent <= 0 || lineIndent == int.MaxValue)
                             throw new InvalidOperationException("First line of TestML indented section must indented and not empty.");
                         indentation = lineIndent;
                     }
-                    else if (lineIndent < indentation && reader.Peek() != '\r' && reader.Peek() != '\n')
+                    else if (lineIndent < indentation)
                     {
                         break;
                     }
 
-                    string line = reader.ReadLine();
-                    if (line == null) break;
-                    line = line.Replace("<SPC>", " ");
-
-                    // Take care of indentation
-                    for (int i=indentation; i<lineIndent; ++i)
+                    reader.ReadLine();
+                    if (line.Length > indentation)
                     {
-                        writer.Write(' ');
+                        line = line.Substring(indentation);
                     }
+                    line = line.Replace("<SPC>", " ");
 
                     // Write the line
                     writer.WriteLine(line);
@@ -140,18 +146,13 @@ namespace UnitTests
             dst.Position = 0;
         }
 
-        static int GetIndentation(TextReader reader)
+        static int GetIndentation(string line)
         {
-            int indent = 0;
-            for (; ; )
+            for (int i=0; i<line.Length; ++i)
             {
-                int ch = reader.Peek();
-                if (ch < 0) return 0;
-                if (ch != ' ' && ch != '\t') break;
-                reader.Read();
-                ++indent;
+                if (!char.IsWhiteSpace(line[i])) return i;
             }
-            return indent;
+            return int.MaxValue;
         }
 
         /// <summary>
@@ -303,6 +304,51 @@ namespace UnitTests
         }
 
         static readonly Encoding s_UTF8 = new UTF8Encoding(false); // UTF8 with no byte-order mark.
+
+        class LineReader : IDisposable
+        {
+            TextReader m_reader;
+            string m_nextLine;
+
+            public LineReader(TextReader reader)
+            {
+                m_reader = reader;
+            }
+
+            public void Dispose()
+            {
+                if (m_reader != null)
+                {
+                    m_reader.Dispose();
+                }
+                m_reader = null;
+            }
+
+            public string PeekLine()
+            {
+                if (m_nextLine == null)
+                {
+                    m_nextLine = m_reader.ReadLine();
+                }
+                return m_nextLine;
+            }
+
+            public string ReadLine()
+            {
+                if (m_nextLine != null)
+                {
+                    var line = m_nextLine;
+                    m_nextLine = null;
+                    return line;
+                }
+                else
+                {
+                    return m_reader.ReadLine();
+                }
+            }
+
+        }
+
     }
 
 
