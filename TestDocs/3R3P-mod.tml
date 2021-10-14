@@ -1,0 +1,25 @@
+=== Single block
+--- from: @perlpunk
+--- tags: anchor sequence
+
+Modified by bredd to remove anchor not supported by FileMeta.org/Yaml
+
+--- in-yaml
+- a
+
+--- out-yaml
+- a
+
+--- in-json
+[
+  "a"
+]
+
+--- test-event
++STR
++DOC
++SEQ &sequence
+=VAL :a
+-SEQ
+-DOC
+-STR
