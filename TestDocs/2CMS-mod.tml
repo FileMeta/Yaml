@@ -1,0 +1,19 @@
+=== Plain multiline key
+--- from: @perlpunk
+--- tags: error mapping
+
+Modified by bredd to validate plain multiline key.
+The original checked that multiline keys caused an error report but multiline
+keys work well in the FileMeta.org/Yaml parser. A future version may
+deliberately detect this case and prohibit it in which case the original
+2CMS.tml test will be restored.
+
+--- in-yaml
+this
+ is
+  valid: x
+
+--- in-json
+{
+  "this is valid": "x"
+}
