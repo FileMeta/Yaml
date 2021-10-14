@@ -298,10 +298,17 @@ namespace UnitTests
         {
             while (reader.Read())
             {
-                Console.WriteLine($"({reader.TokenType}, \"{reader.Value}\")");
+                Console.WriteLine($"({reader.TokenType}, \"{Encode(reader.Value)}\")");
             }
             Console.WriteLine();
         }
+
+        static string Encode(Object obj)
+        {
+            if (obj == null) return string.Empty;
+            return obj.ToString().Replace("\n", "\\n").Replace("\t", "\\t");
+        }
+
 
         static readonly Encoding s_UTF8 = new UTF8Encoding(false); // UTF8 with no byte-order mark.
 
@@ -348,7 +355,6 @@ namespace UnitTests
             }
 
         }
-
     }
 
 

@@ -834,12 +834,22 @@ namespace YamlInternal
                     return;
                 }
             }
+            else
+            {
+                int spaces = SkipInlineWhitespace(indent);
+                if (spaces < indent)
+                {
+                    // Empty value
+                    ChUnread(' ', spaces);
+                    m_tokenType = TokenType.Scalar;
+                    m_token = string.Empty;
+                    return;
+                }
+            }
 
             // Body of value is composed of all lines indented at least as much as the first line.
             // Indent characters are stripped. All other characters are preserved including the concluding \n
             // Embedded comments are not permitted.
-            int spaceCount = 0;
-            bool justFolded = false;
             StringBuilder sb = new StringBuilder();
             for (;;)
             {
@@ -847,48 +857,50 @@ namespace YamlInternal
                 if (ch == '\0') break;
                 if (ch == '\n')
                 {
-                    // Strip trailing spaces
-                    if (spaceCount > 0) sb.Remove(sb.Length - spaceCount, spaceCount);
-                    spaceCount = 0;
+                    TrimTrailingSpaceOrTab(sb);
 
-                    // Read up to indent spaces in the following line
-                    int nextIndent;
-                    for (nextIndent = 0; nextIndent < indent; ++nextIndent)
+                    // Read all whitespace counting newlines
+                    int newlines = (sb.Length == 0) ? 2 : 1;
+                    while (IsWhiteSpace(ChPeek()))
                     {
-                        ch = ChPeek();
-                        if (ch != ' ' && ch != '\t') break;
-                        ChRead();
+                        ch = ChRead();
+                        if (ch == '\n') ++newlines;
                     }
 
-                    // Scalar ends with a non-empty line that is indented less than "indent" value.
-                    if (ch != '\n' && nextIndent < indent)
+                    if (fold)
                     {
-                        sb.Append('\n');
-                        break; // End of scalar
-                    }
-
-                    // Handle line folding (only if didn't just fold a line)
-                    if (fold && !justFolded)
-                    {
-                        sb.Append(' ');
-                        ++spaceCount;
-                        Debug.Assert(spaceCount == 1);
-                        justFolded = true;
+                        // Write the correct number of newlines
+                        if (newlines > 1)
+                        {
+                            sb.Append('\n', newlines - 1);
+                        }
+                        else if (m_lineIndent >= indent)
+                        {
+                            sb.Append(' ');
+                        }
                     }
                     else
                     {
-                        sb.Append('\n');
+                        sb.Append('\n', newlines);
+                        if (m_lineIndent > indent)
+                        {
+                            sb.Append(' ', m_lineIndent - indent);
+                        }
                     }
-                    continue;
-                }
-                justFolded = false;
 
-                // Add the character and count trailing white space
-                sb.Append(ch);
-                if (ch == ' ' || ch == '\t')
-                    ++spaceCount;
+                    // Ends with a line of lesser indent
+                    if (m_lineIndent < indent)
+                    {
+                        sb.Append('\n'); // Final newline
+                        // TODO: This may not be necessary. Find out.
+                        ChUnread(' ', m_lineIndent); // Go back to the beginning of the line
+                        break;
+                    }
+                }
                 else
-                    spaceCount = 0;
+                {
+                    sb.Append(ch);
+                }
             }
 
             // Handle "chomp" options.
@@ -906,7 +918,7 @@ namespace YamlInternal
 
                 if (chomp == '\0') ++end;
 
-                if (end < sb.Length) sb.Remove(end, sb.Length - end);
+                if (sb.Length > end) sb.Length = end;
             }
 
             ChUnread('\n'); // Restore the newline to be read by the outer loop
@@ -976,12 +988,7 @@ namespace YamlInternal
 
             // Strip trailing whitespace
             // TODO: Test whether this is necessary. The new whitespace handling should prevent trailing whitespace
-            int end;
-            for (end = sb.Length; end > 0; --end)
-            {
-                if (!char.IsWhiteSpace(sb[end - 1])) break;
-            }
-            sb.Remove(end, sb.Length - end);
+            TrimTrailingWhitespace(sb);
 
             // Return the scalar
             m_tokenType = TokenType.Scalar;
@@ -1120,15 +1127,14 @@ namespace YamlInternal
 
         // Skip whitespace but not newlines.
         // Depending on context, the number of characters may be significant.
-        private int SkipInlineWhitespace()
+        private int SkipInlineWhitespace(int limit = int.MaxValue)
         {
-            int count = 0;
-            for (;;)
+            int count;
+            for (count = 0; count < limit; ++count)
             {
                 char ch = ChPeek();
                 if (ch != ' ' && ch != '\t') break;
                 ChRead();
-                ++count;
             }
             return count;
         }
@@ -1149,6 +1155,20 @@ namespace YamlInternal
             bool blankLine = (ch == '\n');
             for (int i = 0; i < count; ++i) ChUnread(' ');
             return blankLine ? int.MaxValue : count;
+        }
+
+        static void TrimTrailingSpaceOrTab(StringBuilder sb)
+        {
+            int end = sb.Length;
+            while (end > 0 && IsSpaceOrTab(sb[end-1])) --end;
+            sb.Length = end;
+        }
+
+        static void TrimTrailingWhitespace(StringBuilder sb)
+        {
+            int end = sb.Length;
+            while (end > 0 && IsWhiteSpace(sb[end-1])) --end;
+            sb.Length = end;
         }
 
         #endregion
@@ -1268,6 +1288,15 @@ namespace YamlInternal
             {
                 --m_linePos;
                 if (m_lineIndent > m_linePos) m_lineIndent = m_linePos;
+            }
+        }
+
+        void ChUnread(char ch, int count)
+        {
+            while (count > 0)
+            {
+                ChUnread(ch);
+                --count;
             }
         }
 
