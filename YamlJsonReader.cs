@@ -80,7 +80,7 @@ namespace FileMeta.Yaml
                             {
                                 EndElements(m_lexer.Indentation);
                             }
-                            if (m_stackTop != null && m_stackTop.Type == StackEntryType.Sequence
+                            if (StackTopType == StackEntryType.Sequence
                                 && indentation <= m_currentIndent
                                 && m_lexer.TokenType != YamlInternal.TokenType.SequenceIndicator)
                             {
@@ -103,6 +103,13 @@ namespace FileMeta.Yaml
                             // New Object
                             StartElement(m_lexer.Indentation, JsonToken.StartObject);
                             break; // Let it loop and deal with the KeyPrefix next
+                        }
+
+                        // If in a sequence, this is invalid
+                        if (StackTopType == StackEntryType.Sequence)
+                        {
+                            m_lexer.ReportError("Invalid Key Prefix ('?') in Sequence");
+                            m_lexer.MoveNext();
                         }
 
                         // If expecting a value, then that value is empty.
@@ -205,7 +212,7 @@ namespace FileMeta.Yaml
             get
             {
                 // No keys in a sequence (without an encapsulated object)
-                if (m_stackTop != null && m_stackTop.Type == StackEntryType.Sequence) return false;
+                if (StackTopType == StackEntryType.Sequence) return false;
 
                 // Otherwise, base it on the preceding token
                 switch (TokenType)
@@ -218,6 +225,15 @@ namespace FileMeta.Yaml
                 }
 
                 return false;
+            }
+        }
+
+        StackEntryType StackTopType
+        {
+            get
+            {
+                if (m_stackTop == null) return StackEntryType.None;
+                return m_stackTop.Type; 
             }
         }
 
@@ -321,9 +337,9 @@ namespace FileMeta.Yaml
 
         enum StackEntryType
         {
-            Label = 1,
-            Mapping = 2,
-            Sequence = 3
+            None = 0,
+            Mapping = 1,
+            Sequence = 2
         }
 
         class StackEntry
