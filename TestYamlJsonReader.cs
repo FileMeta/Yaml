@@ -13,16 +13,19 @@ using FileMeta.Yaml;
 
 namespace UnitTests
 {
+
     class TestYamlJsonReader
     {
+        const string c_testDir = "./TestDocs";
+
         public static void PerformTests()
         {
             Console.WriteLine("TestYamlJsonReader");
 
             // When debugging, put first test here
-            //PerformTmlTest(Path.Combine(testDir, "4CQQ.tml"), true);
+            //PerformTmlTest(Path.Combine(c_testDir, "4ZYM.tml"), true);
 
-            PerformTests(Path.GetFullPath("./TestDocs"));
+            PerformTests(Path.GetFullPath(c_testDir));
         }
 
         static void PerformTests(string testDir)

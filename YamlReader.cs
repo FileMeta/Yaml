@@ -830,7 +830,7 @@ namespace YamlInternal
             // If not specified, determine the indent level by the indentation of the first line
             if (indent == 0)
             {
-                indent = SkipInlineWhitespace();
+                indent = SkipSpaces();
                 if (indent == 0)
                 {
                     // Empty value
@@ -842,7 +842,7 @@ namespace YamlInternal
             }
             else
             {
-                int spaces = SkipInlineWhitespace(indent);
+                int spaces = SkipSpaces(indent);
                 if (spaces < indent)
                 {
                     // Empty value
@@ -865,9 +865,10 @@ namespace YamlInternal
                 {
                     TrimTrailingSpaceOrTab(sb);
 
-                    // Read all whitespace counting newlines
+                    // Read all spaces and newlines counting newlines
+                    // Note: Tabs are not included in folding or indentation
                     int newlines = (sb.Length == 0) ? 2 : 1;
-                    while (IsWhiteSpace(ChPeek()))
+                    while (IsSpaceOrNewline(ChPeek()))
                     {
                         ch = ChRead();
                         if (ch == '\n') ++newlines;
@@ -955,10 +956,11 @@ namespace YamlInternal
                 // TODO: Make key or value indicator sensitive to whether a key or a value is expected.
                 // E.g. an embedded colon is OK in a value but not in a key.
 
-                // Collapse whitespace
-                if (IsWhiteSpace(ch))
+                // Collapse spaces
+                // Note, tabs are not included in space condensing and line folding
+                if (IsSpaceOrNewline(ch))
                 {
-                    // Skip all whitespace and newlines
+                    // Skip all spaces and newlines
                     int newlines = 0;
                     for (; ; )
                     {
@@ -972,7 +974,7 @@ namespace YamlInternal
                             }
                             ++newlines;
                         }
-                        if (!IsWhiteSpace(ChPeek())) break;
+                        if (!IsSpaceOrNewline(ChPeek())) break;
                         ch = ChRead();
                     }
 
@@ -1034,12 +1036,7 @@ namespace YamlInternal
                 if (ch == '\0' || ch == '#' || ch == '\n') break;
             }
 
-            // Trim trailing whitespace
-            {
-                int len = sb.Length;
-                while (len > 0 && IsWhiteSpace(sb[len - 1])) --len;
-                sb.Length = len;
-            }
+            TrimTrailingWhitespace(sb);
 
             // Return the directive
             m_tokenType = TokenType.Directive;
@@ -1418,6 +1415,11 @@ namespace YamlInternal
         static bool IsSpaceOrTab(char ch)
         {
             return (ch == ' ' || ch == '\t');
+        }
+
+        static bool IsSpaceOrNewline(char ch)
+        {
+            return (ch == ' ' || ch == '\n');
         }
 
         #endregion Character Types
