@@ -23,19 +23,27 @@ namespace UnitTests
         Stream m_yamlStream = null;
         Stream m_jsonStream = null;
         bool m_shouldError = false;
+        HashSet<string> m_tags = new HashSet<string>();
 
         public string Title { get; private set; }
+
+        public string Filename { get; private set; }
+
+        public HashSet<string> Tags => m_tags;
 
         public bool Trace { get; set; }
 
         public void Load(string testmlFilename)
         {
+            Filename = Path.GetFileName(testmlFilename);
+
             using (var reader = new LineReader(new StreamReader(testmlFilename, Encoding.UTF8, true)))
             {
                 for (; ; )
                 {
                     var line = reader.ReadLine();
                     if (line == null) break;
+                    line = line.Trim();
 
                     if (line.StartsWith("=== "))
                     {
@@ -43,34 +51,42 @@ namespace UnitTests
                         continue;
                     }
 
-                    if (line.Trim().Equals("--- in-yaml", StringComparison.Ordinal))
+                    if (line.Equals("--- in-yaml", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_yamlStream);
                         continue;
                     }
 
-                    if (line.Trim().Equals("--- in-yaml(<)", StringComparison.Ordinal))
+                    if (line.Equals("--- in-yaml(<)", StringComparison.Ordinal))
                     {
                         ReadSectionIndented(reader, ref m_yamlStream);
                         continue;
                     }
 
-                    if (line.Trim().Equals("--- in-json", StringComparison.Ordinal))
+                    if (line.Equals("--- in-json", StringComparison.Ordinal))
                     {
                         ReadSection(reader, ref m_jsonStream);
                         continue;
                     }
 
-                    if (line.Trim().Equals("--- in-json(<)", StringComparison.Ordinal))
+                    if (line.Equals("--- in-json(<)", StringComparison.Ordinal))
                     {
                         ReadSectionIndented(reader, ref m_jsonStream);
                         continue;
                     }
 
-                    if (line.Trim().Equals("--- error", StringComparison.Ordinal))
+                    if (line.Equals("--- error", StringComparison.Ordinal))
                     {
                         m_shouldError = true;
                         continue;
+                    }
+
+                    if (line.StartsWith("--- tags: "))
+                    {
+                        foreach(var tag in line.Substring(10).Split(new char[] {' '}, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            m_tags.Add(tag);
+                        }        
                     }
                 }
             }

@@ -26,22 +26,58 @@ namespace UnitTests
             //PerformTmlTest(Path.Combine(Path.GetFullPath(c_testDir), "JR7V-mod.tml"), true);
 
             PerformTests(Path.GetFullPath(c_testDir));
-            //PerformTests(@"C:\Users\brand\source\temp\yaml-test-suite\test");
+            //PerformTests(@"C:\Users\brand\source\temp\yaml-test-suite\test", "alias", "flow");
         }
 
-        static void PerformTests(string testDir)
+        static void PerformTests(string testDir, params string[] filter)
         {
             int tests = 0;
+            int skipped = 0;
             int passed = 0;
 
             Console.WriteLine($"Performing tests in: {testDir}");
             foreach (var tmlFilename in Directory.GetFiles(testDir, "*.tml"))
             {
                 ++tests;
-                if (PerformTmlTest(tmlFilename)) ++passed;
+                bool skip = false;
+                using (var tml = new TestML())
+                {
+                    try
+                    {
+                        tml.Load(tmlFilename);
+                        foreach (var tag in filter)
+                        {
+                            if (tml.Tags.Contains(tag))
+                            {
+                                skip = true;
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception err)
+                    {
+                        Console.WriteLine($"{tmlFilename}: {err.Message}");
+                        skip = true;
+                    }
+                    if (skip)
+                    {
+                        ++skipped;
+                    }
+                    else if (PerformTmlTest(tml))
+                    {
+                        ++passed;
+                    }
+                }
             }
-            Console.WriteLine($"Passed {passed} of {tests} tests.");
-            Console.WriteLine((passed >= tests) ? "Success!" : "Failure.");
+            int failed = tests - skipped - passed;
+            Console.WriteLine($"{tests} Tests");
+            Console.WriteLine($"{passed} Passed");
+            if (skipped > 0)
+                Console.WriteLine($"{skipped} Skipped");
+            if (failed > 0)
+                Console.WriteLine($"{failed} Failed");
+            if (failed == 0)
+                Console.WriteLine("Success!");
         }
 
         static void PerformRawTest(string yamlFilename)
@@ -59,19 +95,24 @@ namespace UnitTests
 
         static bool PerformTmlTest(string filename, bool trace = false)
         {
+            using (var tml = new TestML())
+            {
+                tml.Load(filename);
+                tml.Trace = trace;
+                return PerformTmlTest(tml);
+            }
+        }
+
+        static bool PerformTmlTest(TestML tml)
+        {
             try
             {
-                using (var tml = new TestML())
-                {
-                    tml.Trace = trace;
-                    tml.Load(filename);
-                    Console.WriteLine($"  {Path.GetFileName(filename)}: {tml.Title}");
-                    tml.PerformTest();
-                }
+                Console.WriteLine($"  {tml.Filename}: {tml.Title}");
+                tml.PerformTest();
             }
             catch (Exception err)
             {
-                Console.WriteLine(err.ToString());
+                Console.WriteLine($"    {err.Message}");
                 return false;
             }
             return true;
