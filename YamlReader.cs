@@ -527,7 +527,7 @@ namespace YamlInternal
             m_token = null;
             for (;;)
             {
-                SkipInlineWhitespace();
+                SkipSpaces();
                 char ch = ChPeek();
 
                 if (ch == 0)
@@ -536,10 +536,16 @@ namespace YamlInternal
                     return;
                 }
 
+                else if (ch == '\t')
+                {
+                    ReportError("Tabs cannot be used for indentation.");
+                    ChRead();
+                }
+
                 else if (ch == '\n')
                 {
                     ChRead();
-                    SkipInlineWhitespace(); // Read whitespace to calculate indentation
+                    SkipSpaces(); // Read spaces to calculate indentation
                     m_tokenType = TokenType.NewLine;
                     return;
                 }
@@ -1010,6 +1016,8 @@ namespace YamlInternal
                 if (ch == '\0' || ch == '#' || IsWhiteSpace(ch)) break;
             }
 
+            SkipInlineWhitespace();
+
             // Return the tag
             m_tokenType = TokenType.Tag;
             m_token = sb.ToString();
@@ -1129,6 +1137,19 @@ namespace YamlInternal
             return (char)result;
         }
 
+        // Skip spaces (but not tabs or newlines
+        private int SkipSpaces(int limit = int.MaxValue)
+        {
+            int count;
+            for (count = 0; count < limit; ++count)
+            {
+                char ch = ChPeek();
+                if (ch != ' ') break;
+                ChRead();
+            }
+            return count;
+        }
+
         // Skip whitespace but not newlines.
         // Depending on context, the number of characters may be significant.
         private int SkipInlineWhitespace(int limit = int.MaxValue)
@@ -1152,7 +1173,7 @@ namespace YamlInternal
             for (; ; )
             {
                 ch = ChPeek();
-                if (ch != ' ' && ch != '\t') break;
+                if (ch != ' ') break;
                 ChRead();
                 ++count;
             }
@@ -1266,7 +1287,7 @@ namespace YamlInternal
                 m_linePos = 0;
                 m_lineIndent = 0;
             }
-            else if (m_lineIndent == m_linePos && (ch == ' ' || ch == '\t'))
+            else if (m_lineIndent == m_linePos && (ch == ' '))
             {
                 ++m_lineIndent;
                 ++m_linePos;
@@ -1340,9 +1361,13 @@ namespace YamlInternal
         {
             if (value != ChPeek()) return false;
             ChRead();
-            if (IsWhiteSpace(ChPeek())) return true;
-            ChUnread(value);
-            return false;
+            if (!IsWhiteSpace(ChPeek()))
+            {
+                ChUnread(value);
+                return false;
+            }
+            SkipInlineWhitespace();
+            return true;
         }
 
         /// <summary>

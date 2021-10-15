@@ -95,7 +95,7 @@ namespace UnitTests
                     if (line.StartsWith("---")) break;
                     reader.ReadLine();
 
-                    line = line.Replace("<SPC>", " ");
+                    line = line.Replace("<SPC>", " ").Replace("<TAB>", "\t");
                     writer.WriteLine(line);
                 }
             }
@@ -137,7 +137,7 @@ namespace UnitTests
                     {
                         line = line.Substring(indentation);
                     }
-                    line = line.Replace("<SPC>", " ");
+                    line = line.Replace("<SPC>", " ").Replace("<TAB>", "\t");
 
                     // Write the line
                     writer.WriteLine(line);
