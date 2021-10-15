@@ -491,40 +491,41 @@ namespace YamlInternal
         LexerState m_state = LexerState.BetweenDocs;
         int m_keyIndent = 0;
 
-        // Current Token
-        TokenType m_tokenType;
-        string m_token;
-
         #region Public Interface
 
         public YamlLexer(TextReader reader, YamlReaderOptions options)
         {
             m_options = (options != null) ? options.Clone() : new YamlReaderOptions();
             m_reader = reader;
-            m_tokenType = TokenType.BetweenDocs;
-            m_token = null;
+            SetToken(TokenType.BetweenDocs);
             ChInit();
         }
 
-        public TokenType TokenType => m_tokenType;
+        public TokenType TokenType { get; private set; }
 
-        public string TokenValue => m_token;
+        public string TokenValue { get; private set; }
 
-        public int Indentation => m_lineIndent;
+        public int TokenIndent { get; private set; }
+
+        void SetToken(TokenType type, int indent = 0, string value = null)
+        {
+            TokenType = type;
+            TokenIndent = indent;
+            TokenValue = value;
+        }
 
         public void MoveNext()
         {
             // If at the beginning of the file, move to the beginning of the next document (sensitive to options)
-            if (m_tokenType == TokenType.BetweenDocs)
+            if (TokenType == TokenType.BetweenDocs)
             {
                 MoveToNextDocument();
-                Debug.Assert(m_tokenType != TokenType.BetweenDocs && m_tokenType != TokenType.Null);
+                Debug.Assert(TokenType != TokenType.BetweenDocs && TokenType != TokenType.Null);
                 return;
             }
 
             // Keep trying until we successfully read a token
-            m_tokenType = TokenType.Null;
-            m_token = null;
+            SetToken(TokenType.Null);
             for (;;)
             {
                 SkipSpaces();
@@ -532,7 +533,7 @@ namespace YamlInternal
 
                 if (ch == 0)
                 {
-                    m_tokenType = TokenType.EOF;
+                    SetToken(TokenType.EOF);
                     return;
                 }
 
@@ -546,7 +547,7 @@ namespace YamlInternal
                 {
                     ChRead();
                     SkipSpaces(); // Read spaces to calculate indentation
-                    m_tokenType = TokenType.NewLine;
+                    SetToken(TokenType.NewLine, m_lineIndent);
                     return;
                 }
 
@@ -554,7 +555,7 @@ namespace YamlInternal
                 {
                     ChUnread('\n'); // Leave the trailing newline for the outer loop
                     m_state = LexerState.BetweenDocs;
-                    m_tokenType = TokenType.EndDoc;
+                    SetToken(TokenType.EndDoc);
                     return;
                 }
 
@@ -562,14 +563,14 @@ namespace YamlInternal
                 {
                     ChUnread('\n'); // Leave the trailing newline for the outer loop
                     m_state = LexerState.InDoc;
-                    m_tokenType = TokenType.BeginDoc;
+                    SetToken(TokenType.BeginDoc);
                     return;
                 }
 
                 else if (ch == '%' && m_state == LexerState.BetweenDocs)
                 {
                     ReadDirective();
-                    Debug.Assert(m_tokenType == TokenType.Directive);
+                    Debug.Assert(TokenType == TokenType.Directive);
                     return;
                 }
 
@@ -584,7 +585,7 @@ namespace YamlInternal
                 {
                     m_state = LexerState.InDoc;
                     ReadQuoteScalar();
-                    Debug.Assert(m_tokenType == TokenType.Scalar);
+                    Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
 
@@ -592,20 +593,20 @@ namespace YamlInternal
                 {
                     m_state = LexerState.InDoc;
                     ReadBlockScalar();
-                    Debug.Assert(m_tokenType == TokenType.Scalar);
+                    Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
 
                 else if (ReadPrefix('?')) // Key Prefix
                 {
                     m_state = LexerState.InDoc;
-                    m_tokenType = TokenType.KeyPrefix;
+                    SetToken(TokenType.KeyPrefix, m_lineIndent);
                     return;
                 }
 
                 else if (ReadPrefix(':')) // value prefix
                 {
-                    m_tokenType = TokenType.ValuePrefix;
+                    SetToken(TokenType.ValuePrefix, m_lineIndent);
                     m_state = LexerState.InDoc;
                     m_keyIndent = m_lineIndent;
                     return;
@@ -613,7 +614,7 @@ namespace YamlInternal
 
                 else if (ReadPrefix('-')) // Sequence entry prefix
                 {
-                    m_tokenType = TokenType.SequenceIndicator;
+                    SetToken(TokenType.SequenceIndicator, m_lineIndent);
                     m_state = LexerState.InDoc;
                     m_keyIndent = m_lineIndent;
                     m_lineIndent = m_linePos; // Allow another sequence or mapping to start on the same line
@@ -624,14 +625,14 @@ namespace YamlInternal
                 {
                     m_state = LexerState.InDoc;
                     ReadTag();
-                    Debug.Assert(m_tokenType == TokenType.Tag);
+                    Debug.Assert(TokenType == TokenType.Tag);
                     return;
                 }
 
                 else
                 {
                     ReadPlainScalar();
-                    Debug.Assert(m_tokenType == TokenType.Scalar);
+                    Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
             }
@@ -649,35 +650,35 @@ namespace YamlInternal
         public bool MoveToNextDocument()
         {
             // Read the balance of the current document (if any)
-            while (m_tokenType != TokenType.Null
-                && m_tokenType != TokenType.BetweenDocs
-                && m_tokenType != TokenType.EOF
-                && m_tokenType != TokenType.BeginDoc
-                && m_tokenType != TokenType.EndDoc)
+            while (TokenType != TokenType.Null
+                && TokenType != TokenType.BetweenDocs
+                && TokenType != TokenType.EOF
+                && TokenType != TokenType.BeginDoc
+                && TokenType != TokenType.EndDoc)
             {
                 MoveNext();
             }
 
             // Optionally skip until the next BeginDoc token
             if (m_options.IgnoreTextOutsideDocumentMarkers
-                && (m_tokenType == TokenType.BetweenDocs || m_tokenType == TokenType.EndDoc))
+                && (TokenType == TokenType.BetweenDocs || TokenType == TokenType.EndDoc))
             {
                 if (!SkipUntilBeginDoc()) return false; // End of file
             }
 
             // If we're at the beginning of the stream, read the next token
-            else if (m_tokenType == TokenType.BetweenDocs)
+            else if (TokenType == TokenType.BetweenDocs)
             {
-                m_tokenType = TokenType.Null;
+                SetToken(TokenType.Null);
                 MoveNext();
             }
 
             // Consume an end document token, if present
-            else if (m_tokenType == TokenType.EndDoc)
+            else if (TokenType == TokenType.EndDoc)
             {
                 MoveNext();
-                if (m_tokenType != TokenType.BeginDoc
-                    && m_tokenType != TokenType.EOF)
+                if (TokenType != TokenType.BeginDoc
+                    && TokenType != TokenType.EOF)
                 {
                     ReportError("Unexpected text found after end document marker.");
                     return false;
@@ -685,13 +686,13 @@ namespace YamlInternal
             }
 
             // If on a begin document token, read the next one to kick things off
-            if (m_tokenType == TokenType.BeginDoc)
+            if (TokenType == TokenType.BeginDoc)
             {
                 MoveNext();
             }
 
             // Return true if there's something more in the document
-            return (m_tokenType != TokenType.EOF);
+            return (TokenType != TokenType.EOF);
         }
 
         public bool SkipUntilBeginDoc()
@@ -699,12 +700,12 @@ namespace YamlInternal
             if (SkipUntilMatch("\n---\n"))
             {
                 ChUnread('\n'); // Leave the newline for the outer loop
-                m_tokenType = TokenType.BeginDoc;
+                SetToken(TokenType.BeginDoc);
                 return true;
             }
             else
             {
-                m_tokenType = TokenType.EOF;
+                SetToken(TokenType.EOF);
                 return false;
             }
         }
@@ -792,8 +793,7 @@ namespace YamlInternal
             }
 
             // Return the result
-            m_tokenType = TokenType.Scalar;
-            m_token = sb.ToString();
+            SetToken(TokenType.Scalar, m_lineIndent, sb.ToString());
         }
 
         private void ReadBlockScalar()
@@ -835,8 +835,7 @@ namespace YamlInternal
                 {
                     // Empty value
                     ChUnread('\n'); // Restore the newline to be read by the outer loop
-                    m_tokenType = TokenType.Scalar;
-                    m_token = string.Empty;
+                    SetToken(TokenType.Scalar, indent, string.Empty);
                     return;
                 }
             }
@@ -847,8 +846,7 @@ namespace YamlInternal
                 {
                     // Empty value
                     ChUnread(' ', spaces);
-                    m_tokenType = TokenType.Scalar;
-                    m_token = string.Empty;
+                    SetToken(TokenType.Scalar, indent, string.Empty);
                     return;
                 }
             }
@@ -935,13 +933,13 @@ namespace YamlInternal
             ChUnread('\n'); // Restore the newline to be read by the outer loop
 
             // Return the result
-            m_tokenType = TokenType.Scalar;
-            m_token = sb.ToString();          
+            SetToken(TokenType.Scalar, indent, sb.ToString());
         }
 
         private void ReadPlainScalar()
         {
             var sb = new StringBuilder();
+            var indent = m_lineIndent;
 
             bool endString = false;
             while (!endString)
@@ -1001,8 +999,7 @@ namespace YamlInternal
             TrimTrailingWhitespace(sb);
 
             // Return the scalar
-            m_tokenType = TokenType.Scalar;
-            m_token = sb.ToString();
+            SetToken(TokenType.Scalar, indent, sb.ToString());
         }
 
         private void ReadTag()
@@ -1019,8 +1016,7 @@ namespace YamlInternal
             SkipInlineWhitespace();
 
             // Return the tag
-            m_tokenType = TokenType.Tag;
-            m_token = sb.ToString();
+            SetToken(TokenType.Tag, m_lineIndent, sb.ToString());
         }
 
         private void ReadDirective()
@@ -1037,8 +1033,7 @@ namespace YamlInternal
             TrimTrailingWhitespace(sb);
 
             // Return the directive
-            m_tokenType = TokenType.Directive;
-            m_token = sb.ToString();
+            SetToken(TokenType.Directive, 0, sb.ToString());
         }
 
         private char ReadEscape()
@@ -1462,8 +1457,9 @@ namespace YamlInternal
 
         public void Dispose()
         {
-            m_tokenType = TokenType.EndDoc;
-            m_token = string.Empty;
+            TokenType = TokenType.EndDoc;
+            TokenIndent = 0;
+            TokenValue = null;
             if (m_reader != null)
             {
                 if (m_options.CloseInput)

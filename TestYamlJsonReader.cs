@@ -23,9 +23,10 @@ namespace UnitTests
             Console.WriteLine("TestYamlJsonReader");
 
             // When debugging, put first test here
-            //PerformTmlTest(Path.Combine(c_testDir, "4ZYM.tml"), true);
+            //PerformTmlTest(Path.Combine(Path.GetFullPath(c_testDir), "JR7V-mod.tml"), true);
 
             PerformTests(Path.GetFullPath(c_testDir));
+            //PerformTests(@"C:\Users\brand\source\temp\yaml-test-suite\test");
         }
 
         static void PerformTests(string testDir)

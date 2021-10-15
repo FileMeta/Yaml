@@ -68,7 +68,7 @@ namespace FileMeta.Yaml
 
                     case YamlInternal.TokenType.NewLine:
                         {
-                            var indentation = m_lexer.Indentation;
+                            var indentation = m_lexer.TokenIndent;
                             m_lexer.MoveNext(); // Do this first so that we can look ahead
 
                             // Ignore blank lines
@@ -78,7 +78,7 @@ namespace FileMeta.Yaml
 
                             if (indentation < m_currentIndent)
                             {
-                                EndElements(m_lexer.Indentation);
+                                EndElements(m_lexer.TokenIndent);
                             }
                             if (StackTopType == StackEntryType.Sequence
                                 && indentation <= m_currentIndent
@@ -92,16 +92,16 @@ namespace FileMeta.Yaml
                     case YamlInternal.TokenType.ValuePrefix:
                         // This is a bare ValuePrefix without a leading scalar
                         // Write out an empty key
-                        EnqueueKey(m_lexer.Indentation, string.Empty);
+                        EnqueueKey(m_lexer.TokenIndent, string.Empty);
                         m_lexer.MoveNext();
                         break;
 
                     case YamlInternal.TokenType.KeyPrefix:
                         // If indented, take care of that first
-                        if (m_lexer.Indentation > m_currentIndent)
+                        if (m_lexer.TokenIndent > m_currentIndent)
                         {
                             // New Object
-                            StartElement(m_lexer.Indentation, JsonToken.StartObject);
+                            StartElement(m_lexer.TokenIndent, JsonToken.StartObject);
                             break; // Let it loop and deal with the KeyPrefix next
                         }
 
@@ -139,7 +139,7 @@ namespace FileMeta.Yaml
                         {
                             // Save and read ahead so we know what to do
                             var scalar = m_lexer.TokenValue;
-                            var indent = m_lexer.Indentation;
+                            var indent = m_lexer.TokenIndent;
                             m_lexer.MoveNext();
 
                             if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
@@ -161,11 +161,11 @@ namespace FileMeta.Yaml
 
                     case YamlInternal.TokenType.SequenceIndicator:
                         // Start a new sequence if appropriate
-                        if (m_lexer.Indentation > m_currentIndent)
+                        if (m_lexer.TokenIndent > m_currentIndent)
                         {
-                            StartElement(m_lexer.Indentation, JsonToken.StartArray);
+                            StartElement(m_lexer.TokenIndent, JsonToken.StartArray);
                         }
-                        if (m_stackTop.Type != StackEntryType.Sequence || m_stackTop.PrevIndent >= m_lexer.Indentation)
+                        if (m_stackTop.Type != StackEntryType.Sequence || m_stackTop.PrevIndent >= m_lexer.TokenIndent)
                         {
                             m_lexer.ReportError("Unexpected sequence indicator '-'.");
                         }
