@@ -948,13 +948,11 @@ namespace YamlInternal
             {
                 var ch = ChRead();
                 if (ch == '\0') break; // EOF
-                if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek()))
+                if ((ch == ':') && IsWhiteSpace(ChPeek()))
                 {
                     ChUnread(ch);
                     break; // Key or value indicator
                 }
-                // TODO: Make key or value indicator sensitive to whether a key or a value is expected.
-                // E.g. an embedded colon is OK in a value but not in a key.
 
                 // Collapse spaces
                 // Note, tabs are not included in space condensing and line folding
