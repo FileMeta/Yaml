@@ -181,11 +181,6 @@ namespace UnitTests
                 throw new InvalidOperationException("Must load TestML first.");
             }
 
-            var yamlOptions = new YamlReaderOptions();
-            yamlOptions.MergeDocuments = true;
-            yamlOptions.IgnoreTextOutsideDocumentMarkers = false;
-            yamlOptions.CloseInput = false;
-
             if (!m_shouldError)
             {
                 if (Trace)
@@ -199,7 +194,7 @@ namespace UnitTests
                 }
                 m_yamlStream.Position = 0;
                 m_jsonStream.Position = 0;
-                CompareYamlToJson.Compare(m_yamlStream, yamlOptions, m_jsonStream);
+                CompareYamlToJson.Compare(m_yamlStream, s_yamlOptions, m_jsonStream);
             }
             else
             {
@@ -210,17 +205,17 @@ namespace UnitTests
                     Console.WriteLine();
                 }
                 m_yamlStream.Position = 0;
-                AssertParseError(m_yamlStream, yamlOptions);
+                AssertParseError(m_yamlStream);
             }
         }
 
-        void AssertParseError(Stream yamlStream, YamlReaderOptions yamlOptions)
+        void AssertParseError(Stream yamlStream)
         {
             bool hasError = false;
             try
             {
                 JToken fromYaml;
-                using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
+                using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), s_yamlOptions))
                 {
                     fromYaml = JToken.ReadFrom(reader);
 
@@ -279,10 +274,7 @@ namespace UnitTests
 
         void TraceYaml()
         {
-            var yamlOptions = new YamlReaderOptions();
-            yamlOptions.MergeDocuments = true;
-            yamlOptions.IgnoreTextOutsideDocumentMarkers = false;
-            yamlOptions.CloseInput = false;
+            var yamlOptions = s_yamlOptions.Clone();
             yamlOptions.ThrowOnError = false;
 
             m_yamlStream.Position = 0;
@@ -325,6 +317,17 @@ namespace UnitTests
             return obj.ToString().Replace("\n", "\\n").Replace("\t", "\\t");
         }
 
+        static YamlReaderOptions s_yamlOptions;
+
+        static TestML()
+        {
+            s_yamlOptions = new YamlReaderOptions();
+            s_yamlOptions.MergeDocuments = false;
+            s_yamlOptions.IgnoreTextOutsideDocumentMarkers = false;
+            s_yamlOptions.AcceptContentOnStartDocumentLine = false;
+            s_yamlOptions.CloseInput = false;
+            s_yamlOptions.ThrowOnError = true;
+        }
 
         static readonly Encoding s_UTF8 = new UTF8Encoding(false); // UTF8 with no byte-order mark.
 

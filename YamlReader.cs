@@ -108,6 +108,29 @@ namespace FileMeta.Yaml
         public bool IgnoreTextOutsideDocumentMarkers { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the reader should accept content following
+        /// the document start marker. The default is false.
+        /// </summary>
+        /// <remarks>
+        /// <para>The YAML 1.2 specification permits content to start on the same line as the
+        /// document start marker like this:
+        /// </para>
+        /// 
+        /// <code>
+        /// --- |
+        ///  Single-value
+        ///  document
+        /// ...
+        /// </code>
+        /// 
+        /// <para>This flag permits that construct. However, it is not recommended as it can
+        /// cause some confusion regarding indentation. It's only useful for type tags and
+        /// for single-valued documents. Both can be accomplished in the following line.
+        /// </para>
+        /// </remarks>
+        public bool AcceptContentOnStartDocumentLine { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the reader should treat all documents in the
         /// input file as one. Default is false.
         /// </summary>
@@ -559,11 +582,23 @@ namespace YamlInternal
                     return;
                 }
 
-                else if (m_linePos == 0 && ReadMatch("---\n"))
+                else if (m_linePos == 0 && !m_options.AcceptContentOnStartDocumentLine
+                    && ReadMatch("---\n"))
                 {
                     ChUnread('\n'); // Leave the trailing newline for the outer loop
                     m_state = LexerState.InDoc;
                     SetToken(TokenType.BeginDoc);
+                    return;
+                }
+
+                else if (m_linePos == 0 && m_options.AcceptContentOnStartDocumentLine
+                    && ReadPrefix("---"))
+                {
+                    m_state = LexerState.InDoc;
+                    SetToken(TokenType.BeginDoc);
+                    SkipInlineWhitespace();
+                    m_linePos = 0;
+                    m_lineIndent = 0;
                     return;
                 }
 
@@ -1358,6 +1393,27 @@ namespace YamlInternal
             }
             SkipInlineWhitespace();
             return true;
+        }
+        
+        // Looks for a multi-character prefix followed by whitespace
+        bool ReadPrefix(string value)
+        {
+            int i;
+            for (i = 0; i < value.Length; ++i)
+            {
+                if (value[i] != ChPeek()) break;
+                ChRead();
+            }
+
+            if (i >= value.Length && IsWhiteSpace(ChPeek())) return true;
+
+            // Undo the character reads
+            while (i > 0)
+            {
+                --i;
+                ChUnread(value[i]);
+            }
+            return false;
         }
 
         /// <summary>

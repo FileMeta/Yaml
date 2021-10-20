@@ -42,7 +42,6 @@ namespace UnitTests
             {
                 ++tests;
 
-                bool skip = false;
                 using (var tml = new TestML())
                 {
                     // Load (and check for load error)
@@ -59,9 +58,9 @@ namespace UnitTests
 
                     if (!PerformTmlTest(tml))
                     {
-                        if (tml.Tags.Contains("alias"))
+                        if (tml.Tags.Contains("anchor") || tml.Tags.Contains("alias"))
                         {
-                            Console.WriteLine("    (Alias)");
+                            Console.WriteLine("    (Anchor/Alias)");
                             ++aliasErrors;
                         }
                         else if (tml.Tags.Contains("flow"))
