@@ -26,57 +26,68 @@ namespace UnitTests
             //PerformTmlTest(Path.Combine(Path.GetFullPath(c_testDir), "JR7V-mod.tml"), true);
 
             PerformTests(Path.GetFullPath(c_testDir));
-            //PerformTests(@"C:\Users\brand\source\temp\yaml-test-suite\test", "alias", "flow");
+            //PerformTests(@"C:\Users\brand\source\temp\yaml-test-suite\test");
         }
 
         static void PerformTests(string testDir, params string[] filter)
         {
             int tests = 0;
-            int skipped = 0;
-            int passed = 0;
+            int loadErrors = 0;
+            int aliasErrors = 0;
+            int flowErrors = 0;
+            int failures = 0;
 
             Console.WriteLine($"Performing tests in: {testDir}");
             foreach (var tmlFilename in Directory.GetFiles(testDir, "*.tml"))
             {
                 ++tests;
+
                 bool skip = false;
                 using (var tml = new TestML())
                 {
+                    // Load (and check for load error)
                     try
                     {
                         tml.Load(tmlFilename);
-                        foreach (var tag in filter)
-                        {
-                            if (tml.Tags.Contains(tag))
-                            {
-                                skip = true;
-                                break;
-                            }
-                        }
                     }
                     catch (Exception err)
                     {
-                        Console.WriteLine($"{tmlFilename}: {err.Message}");
-                        skip = true;
+                        Console.WriteLine($"{tmlFilename}: Load Error: {err.Message}");
+                        ++loadErrors;
+                        continue;
                     }
-                    if (skip)
+
+                    if (!PerformTmlTest(tml))
                     {
-                        ++skipped;
-                    }
-                    else if (PerformTmlTest(tml))
-                    {
-                        ++passed;
+                        if (tml.Tags.Contains("alias"))
+                        {
+                            Console.WriteLine("    (Alias)");
+                            ++aliasErrors;
+                        }
+                        else if (tml.Tags.Contains("flow"))
+                        {
+                            Console.WriteLine("    (Flow)");
+                            ++flowErrors;
+                        }
+                        else
+                        {
+                            ++failures;
+                        }
                     }
                 }
             }
-            int failed = tests - skipped - passed;
+            int passed = tests - (loadErrors + aliasErrors + flowErrors + failures);
             Console.WriteLine($"{tests} Tests");
             Console.WriteLine($"{passed} Passed");
-            if (skipped > 0)
-                Console.WriteLine($"{skipped} Skipped");
-            if (failed > 0)
-                Console.WriteLine($"{failed} Failed");
-            if (failed == 0)
+            if (loadErrors > 0)
+                Console.WriteLine($"{loadErrors} Load Errors");
+            if (aliasErrors > 0)
+                Console.WriteLine($"{aliasErrors} Alias Not Supported");
+            if (flowErrors > 0)
+                Console.WriteLine($"{flowErrors} Flow Not Supported");
+            if (failures > 0)
+                Console.WriteLine($"{failures} Test Failures");
+            if (passed >= tests)
                 Console.WriteLine("Success!");
         }
 
