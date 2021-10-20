@@ -324,7 +324,7 @@ namespace UnitTests
             s_yamlOptions = new YamlReaderOptions();
             s_yamlOptions.MergeDocuments = false;
             s_yamlOptions.IgnoreTextOutsideDocumentMarkers = false;
-            s_yamlOptions.AcceptContentOnStartDocumentLine = false;
+            s_yamlOptions.AcceptContentOnStartDocumentLine = true;
             s_yamlOptions.CloseInput = false;
             s_yamlOptions.ThrowOnError = true;
         }

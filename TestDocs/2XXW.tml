@@ -2,21 +2,17 @@
 --- from: http://www.yaml.org/spec/1.2/spec.html#id2761758
 --- tags: spec mapping unknown-tag explicit-key
 
-Modified by bredd to move content on the document start line to the following line.
-
 --- in-yaml(<)
     # Sets are represented as a
     # Mapping where each key is
     # associated with a null value
-    ---
-    !!set
+    --- !!set
     ? Mark McGwire
     ? Sammy Sosa
     ? Ken Griff
 
 --- out-yaml(<)
-    ---
-    !!set
+    --- !!set
     Mark McGwire:
     Sammy Sosa:
     Ken Griff:

@@ -1,5 +1,5 @@
 ﻿/*
----
+ 
 # Metadata in MicroYaml format. See http://filemeta.org/CodeBit.html
 name: MicroYamlReader.cs
 description: MicroYaml Reader in C#
@@ -732,17 +732,30 @@ namespace YamlInternal
 
         public bool SkipUntilBeginDoc()
         {
-            if (SkipUntilMatch("\n---\n"))
+            if (m_options.AcceptContentOnStartDocumentLine)
             {
-                ChUnread('\n'); // Leave the newline for the outer loop
-                SetToken(TokenType.BeginDoc);
-                return true;
+                if (SkipUntilMatch("\n---"))
+                {
+                    SetToken(TokenType.BeginDoc);
+                    SkipInlineWhitespace();
+                    m_lineIndent = 0;
+                    m_linePos = 0;
+                    return true;
+                }
             }
             else
             {
-                SetToken(TokenType.EOF);
-                return false;
+                if (SkipUntilMatch("\n---\n"))
+                {
+                    ChUnread('\n'); // Leave the newline for the outer loop
+                    SetToken(TokenType.BeginDoc);
+                    return true;
+                }
             }
+
+            // Not found
+            SetToken(TokenType.EOF);
+            return false;
         }
 
         #endregion Public

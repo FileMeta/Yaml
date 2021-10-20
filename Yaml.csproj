@@ -80,7 +80,7 @@
     <None Include="TestDocs\26DV-mod.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestDocs\27NA-mod.tml">
+    <None Include="TestDocs\27NA.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestDocs\2AUY.tml">
@@ -98,7 +98,7 @@
     <None Include="TestDocs\2LFX.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestDocs\2XXW-mod.tml">
+    <None Include="TestDocs\2XXW.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestDocs\33X3.tml">
@@ -134,7 +134,7 @@
     <None Include="TestDocs\4HVU.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestDocs\4Q9F-mod.tml">
+    <None Include="TestDocs\4Q9F.tml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestDocs\4QFQ.tml">
