@@ -14,35 +14,17 @@ namespace UnitTests
 {
     class Program
     {
-        static bool m_trace = false; // Manually set to true for verbose output
+        static bool s_trace = false; // Manually set to true for verbose output
 
-        static int m_successCount;
-        static int m_failureCount;
+        static int s_successCount;
+        static int s_failureCount;
 
         // Execute all unit tests.
         static void Main(string[] args)
         {
             try
             {
-                TestYamlJsonReader.PerformTests();
-                Console.WriteLine();
-
-                m_successCount = 0;
-                m_failureCount = 0;
-
-                ExecuteTest("0", m_cTest0, m_cTest0Expected, false);
-                ExecuteTest("1", m_cTest1, m_cTest1Expected, false);
-                ExecuteTest("2", m_cTest2, m_cTest2Expected, true);
-
-                if (m_failureCount == 0)
-                {
-                    Console.WriteLine("All {0} tests passed.", m_successCount);
-                }
-                else
-                {
-                    Console.WriteLine("{0} tests passed.", m_successCount);
-                    Console.WriteLine("{0} tests failed.", m_failureCount);
-                }
+                PerformAllTests();
             }
             catch (Exception err)
             {
@@ -50,6 +32,36 @@ namespace UnitTests
             }
 
             Win32Interop.ConsoleHelper.PromptAndWaitIfSoleConsole();
+        }
+
+        static void PerformAllTests()
+        {
+            if (!PerformMicroYamlTests()) return;
+            Console.WriteLine();
+            TestYamlJsonReader.PerformTests();
+        }
+
+        static bool PerformMicroYamlTests()
+        {
+            Console.WriteLine("MicroYaml Tests");
+            s_successCount = 0;
+            s_failureCount = 0;
+
+            ExecuteTest("0", m_cTest0, m_cTest0Expected, false);
+            ExecuteTest("1", m_cTest1, m_cTest1Expected, false);
+            ExecuteTest("2", m_cTest2, m_cTest2Expected, true);
+
+            if (s_failureCount == 0)
+            {
+                Console.WriteLine("  All {0} MicroYaml tests passed.", s_successCount);
+            }
+            else
+            {
+                Console.WriteLine("  {0} MicroYaml tests passed.", s_successCount);
+                Console.WriteLine("  {0} MicroYaml tests failed.", s_failureCount);
+            }
+
+            return s_failureCount == 0;
         }
 
         static bool ExecuteTest(string description, string yaml, IEnumerable<KeyValuePair<string, string>> expected, bool ignoreTextOutside = false)
@@ -86,11 +98,11 @@ namespace UnitTests
 
             if (success)
             {
-                ++m_successCount;
+                ++s_successCount;
             }
             else
             {
-                ++m_failureCount;
+                ++s_failureCount;
             }
 
             return success;
@@ -268,7 +280,7 @@ namespace UnitTests
 
         static void Trace(string msg, params object[] args)
         {
-            if (m_trace)
+            if (s_trace)
             {
                 Console.WriteLine(msg, args);
             }

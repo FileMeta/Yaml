@@ -25,8 +25,8 @@ namespace UnitTests
             // When debugging, put first test here
             //PerformTmlTest(Path.Combine(Path.GetFullPath(c_testDir), "JR7V-mod.tml"), true);
 
-            PerformTests(Path.GetFullPath(c_testDir));
-            //PerformTests(@"C:\Users\brand\source\temp\yaml-test-suite\test");
+            //PerformTests(Path.GetFullPath(c_testDir));
+            PerformTests(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite-Modified");
         }
 
         static void PerformTests(string testDir, params string[] filter)
@@ -56,20 +56,24 @@ namespace UnitTests
                         continue;
                     }
 
-                    if (!PerformTmlTest(tml))
+                    if (!PerformTmlTest(tml, out Exception errDetail))
                     {
                         if (tml.Tags.Contains("anchor") || tml.Tags.Contains("alias"))
                         {
-                            Console.WriteLine("    (Anchor/Alias)");
+                            Console.WriteLine($"    Anchor/Alias Error: {errDetail.Message}");
                             ++aliasErrors;
                         }
                         else if (tml.Tags.Contains("flow"))
                         {
-                            Console.WriteLine("    (Flow)");
+                            Console.WriteLine($"    Flow Error: {errDetail.Message}");
                             ++flowErrors;
                         }
                         else
                         {
+                            var saveColor = Console.ForegroundColor;
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"    Failure: {errDetail.Message}");
+                            Console.ForegroundColor = saveColor;
                             ++failures;
                         }
                     }
@@ -109,11 +113,17 @@ namespace UnitTests
             {
                 tml.Load(filename);
                 tml.Trace = trace;
-                return PerformTmlTest(tml);
+                Exception errDetail;
+                if (!PerformTmlTest(tml, out errDetail))
+                {
+                    Console.WriteLine($"  {errDetail.Message}");
+                    return false;
+                }
+                return true;
             }
         }
 
-        static bool PerformTmlTest(TestML tml)
+        static bool PerformTmlTest(TestML tml, out Exception errDetail)
         {
             try
             {
@@ -122,9 +132,10 @@ namespace UnitTests
             }
             catch (Exception err)
             {
-                Console.WriteLine($"    {err.Message}");
+                errDetail = err;
                 return false;
             }
+            errDetail = null;
             return true;
         }
 
