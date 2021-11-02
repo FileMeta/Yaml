@@ -92,7 +92,6 @@ namespace UnitTests
             }
 
             if (m_yamlStream == null) throw new ApplicationException("TestML Lacks in-yaml section.");
-            if (m_jsonStream == null && !m_shouldError) throw new ApplicationException("TestML Lacks in-json section.");
         }
 
         static void ReadSection (LineReader reader, ref Stream dst)
@@ -179,10 +178,11 @@ namespace UnitTests
         /// </summary>
         public void PerformTest()
         {
-            if (m_yamlStream == null || (m_jsonStream == null && m_shouldError == false))
-            {
+            if (m_yamlStream == null)
                 throw new InvalidOperationException("Must load TestML first.");
-            }
+
+            if (m_jsonStream == null && m_shouldError==false)
+                throw new ApplicationException("TestML Lacks in-json section.");
 
             if (!m_shouldError)
             {

@@ -44,8 +44,6 @@ namespace UnitTests
 
                 using (var tml = new TestML())
                 {
-                    Exception errDetail = null;
-
                     // Load (and check for load error)
                     try
                     {
@@ -53,15 +51,15 @@ namespace UnitTests
                     }
                     catch (Exception err)
                     {
-                        errDetail = err;
+                        var saveColor = Console.ForegroundColor;
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"  {Path.GetFileName(tmlFilename)}: {err.Message}");
+                        Console.ForegroundColor = saveColor;
+                        ++loadErrors;
+                        continue;
                     }
 
-                    if (errDetail == null)
-                    {
-                        PerformTmlTest(tml, out errDetail);
-                    }
-
-                    if (errDetail != null)
+                    if (!PerformTmlTest(tml, out Exception errDetail))
                     {
                         if (tml.Tags.Contains("anchor") || tml.Tags.Contains("alias"))
                         {
@@ -84,6 +82,7 @@ namespace UnitTests
                     }
                 }
             }
+
             int passed = tests - (loadErrors + aliasErrors + flowErrors + failures);
             Console.WriteLine($"{tests} Tests");
             Console.WriteLine($"{passed} Passed");
