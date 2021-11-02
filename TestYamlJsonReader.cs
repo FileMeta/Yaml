@@ -44,6 +44,8 @@ namespace UnitTests
 
                 using (var tml = new TestML())
                 {
+                    Exception errDetail = null;
+
                     // Load (and check for load error)
                     try
                     {
@@ -51,12 +53,15 @@ namespace UnitTests
                     }
                     catch (Exception err)
                     {
-                        Console.WriteLine($"{tmlFilename}: Load Error: {err.Message}");
-                        ++loadErrors;
-                        continue;
+                        errDetail = err;
                     }
 
-                    if (!PerformTmlTest(tml, out Exception errDetail))
+                    if (errDetail == null)
+                    {
+                        PerformTmlTest(tml, out errDetail);
+                    }
+
+                    if (errDetail != null)
                     {
                         if (tml.Tags.Contains("anchor") || tml.Tags.Contains("alias"))
                         {
