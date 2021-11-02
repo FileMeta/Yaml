@@ -1094,9 +1094,6 @@ namespace YamlInternal
                 case '0':
                     return '\0';
 
-                case '\n': // You can literally escape a line-end.
-                    return '\n';
-
                 case 'a':
                     return '\a';
 
@@ -1139,7 +1136,26 @@ namespace YamlInternal
                 case 'u':
                     return ReadHex(4);
 
+                case '"':
+                case ' ':
+                case '/':
+                case '\\':
+                case '\0':
+                case '\a':
+                case '\b':
+                case '\t':
+                case '\n':
+                case '\v':
+                case '\f':
+                case '\r':
+                case '\x1B':
+                case '\x85':
+                case '\xA0':
+                case '\u2028':
+                    return ch;
+
                 default:
+                    ReportError($"Invalid escape in string: \\{ch}");
                     return ch;
             }
         }
