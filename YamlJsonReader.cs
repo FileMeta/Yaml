@@ -80,11 +80,14 @@ namespace FileMeta.Yaml
                             {
                                 EndElements(m_lexer.TokenIndent);
                             }
+
+                            // TODO: See if there's a cleaner/simpler way to do this combined with the prior test.
+                            // Sequence indicator can be at the exact indent of its owner.
                             if (StackTopType == StackEntryType.Sequence
-                                && indentation <= m_currentIndent
-                                && m_lexer.TokenType != YamlInternal.TokenType.SequenceIndicator)
+                                && m_lexer.TokenType != YamlInternal.TokenType.SequenceIndicator
+                                && indentation == m_stackTop.PrevIndent)
                             {
-                                m_lexer.ReportError("Expected '-' sequence indicator.");
+                                EndSequence();
                             }
                         }
                         break;
@@ -160,12 +163,17 @@ namespace FileMeta.Yaml
                         break;
 
                     case YamlInternal.TokenType.SequenceIndicator:
+                        if (StackTopType == StackEntryType.Sequence
+                            && m_lexer.TokenIndent == m_currentIndent)
+                        {
+                            // Continue the sequence
+                        }
                         // Start a new sequence if appropriate
-                        if (m_lexer.TokenIndent > m_currentIndent)
+                        else if (m_lexer.TokenIndent >= m_currentIndent)
                         {
                             StartElement(m_lexer.TokenIndent, JsonToken.StartArray);
                         }
-                        if (m_stackTop.Type != StackEntryType.Sequence || m_stackTop.PrevIndent >= m_lexer.TokenIndent)
+                        else
                         {
                             m_lexer.ReportError("Unexpected sequence indicator '-'.");
                         }
@@ -232,6 +240,7 @@ namespace FileMeta.Yaml
         {
             get
             {
+                // TODO: Consider a neutral stack top entry so e don't have to check for null
                 if (m_stackTop == null) return StackEntryType.None;
                 return m_stackTop.Type; 
             }
@@ -264,7 +273,7 @@ namespace FileMeta.Yaml
 
         void StartElement(int indent, JsonToken token)
         {
-            Debug.Assert(indent > m_currentIndent);
+            //Debug.Assert(indent > m_currentIndent);
             Debug.Assert(token == JsonToken.StartObject || token == JsonToken.StartArray);
             Push((token == JsonToken.StartObject) ? StackEntryType.Mapping : StackEntryType.Sequence,
                 m_currentIndent);
@@ -289,6 +298,13 @@ namespace FileMeta.Yaml
                 m_lexer.ReportError("Indentation mismatch.");
                 m_currentIndent = indent;
             }
+        }
+
+        void EndSequence()
+        {
+            Debug.Assert(StackTopType == StackEntryType.Sequence);
+            EnqueueToken(JsonToken.EndArray);
+            Pop();
         }
 
         #region Queue
