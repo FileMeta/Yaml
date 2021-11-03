@@ -878,15 +878,38 @@ namespace YamlInternal
             SkipBalanceOfLine();
             ChRead();   // Read the newline
 
-            // If not specified, determine the indent level by the indentation of the first line
+            StringBuilder sb = new StringBuilder();
+
+            // If not specified, determine the indent level by the indentation of the first non-empty line
             if (indent == 0)
             {
-                indent = SkipSpaces();
-                if (indent == 0)
+                // Skip empty lines and set the indentation according to the first non-empty line.
+                int maxEmptyLen = 0;
+                int newlines = 1;
+                while (IsSpaceOrNewline(ChPeek()))
                 {
-                    // Empty value
+                    if (maxEmptyLen < m_lineIndent) maxEmptyLen = m_lineIndent;
+                    ch = ChRead();
+                    if (ch == '\n')
+                    {
+                        ++newlines;
+                    }
+                }
+
+                indent = m_lineIndent;
+                if (maxEmptyLen > indent)
+                {
+                    ReportError("Excessive spaces on blank line.");
+                }
+                if (newlines > 1)
+                {
+                    sb.Append('\n', newlines - 1);
+                }
+
+                if (indent == 0) // Nothing but empty lines
+                {
                     ChUnread('\n'); // Restore the newline to be read by the outer loop
-                    SetToken(TokenType.Scalar, indent, string.Empty);
+                    SetToken(TokenType.Scalar, indent, sb.ToString());
                     return;
                 }
             }
@@ -905,7 +928,6 @@ namespace YamlInternal
             // Body of value is composed of all lines indented at least as much as the first line.
             // Indent characters are stripped. All other characters are preserved including the concluding \n
             // Embedded comments are not permitted.
-            StringBuilder sb = new StringBuilder();
             for (;;)
             {
                 ch = ChRead();
