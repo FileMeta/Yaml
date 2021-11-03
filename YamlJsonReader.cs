@@ -93,9 +93,12 @@ namespace FileMeta.Yaml
                         break;
 
                     case YamlInternal.TokenType.ValuePrefix:
-                        // This is a bare ValuePrefix without a leading scalar
-                        // Write out an empty key
-                        EnqueueKey(m_lexer.TokenIndent, string.Empty);
+                        if (ExpectingKey || m_lexer.TokenIndent > m_currentIndent)
+                        {
+                            // This is a bare ValuePrefix without a leading scalar
+                            // Write out an empty key
+                            EnqueueKey(m_lexer.TokenIndent, string.Empty);
+                        }
                         m_lexer.MoveNext();
                         break;
 
@@ -125,17 +128,17 @@ namespace FileMeta.Yaml
                         // Finish reading the keyPrefix
                         m_lexer.MoveNext();
 
-                        // If the next token is a scalar, treat it as a key
-                        if (m_lexer.TokenType == YamlInternal.TokenType.Scalar)
-                        {
-                            EnqueueToken(JsonToken.PropertyName, m_lexer.TokenValue);
-                            m_lexer.MoveNext();
-                        }
-                        else
+                        // If the next token is not a scalar report the error
+                        if (m_lexer.TokenType != YamlInternal.TokenType.Scalar)
                         {
                             m_lexer.ReportError("Expected key value.");
                             EnqueueToken(JsonToken.PropertyName, string.Empty);
+                            break;
                         }
+
+                        // Report the key
+                        EnqueueToken(JsonToken.PropertyName, m_lexer.TokenValue);
+                        m_lexer.MoveNext();
                         break;
 
                     case YamlInternal.TokenType.Scalar:

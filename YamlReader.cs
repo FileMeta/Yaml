@@ -644,6 +644,7 @@ namespace YamlInternal
                     SetToken(TokenType.ValuePrefix, m_lineIndent);
                     m_state = LexerState.InDoc;
                     m_keyIndent = m_lineIndent;
+                    m_lineIndent = m_linePos; // Allow a sequence or mapping to start on the same line
                     return;
                 }
 
