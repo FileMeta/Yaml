@@ -781,11 +781,11 @@ namespace YamlInternal
         {
             // In quote scalars, line breaks are converted to spaces.
             // Leading and trailing spaces on line breaks are stripped.
-            // Double-quote scalars use backslash escaping while single-quote scalars allow the quote to be doubled
+            // Double-quote scalars use backslash escaping while single-quote
+            // scalars allow the quote to be doubled.
             char quoteChar = ChRead();
             Debug.Assert(quoteChar == '"' || quoteChar == '\'');
             bool doubleQuote = (quoteChar == '"');
-            int spaceCount = 0;
             StringBuilder sb = new StringBuilder();
             for (;;)
             {
@@ -796,7 +796,6 @@ namespace YamlInternal
                 if (doubleQuote && ch == '\\')
                 {
                     sb.Append(ReadEscape());
-                    spaceCount = 0;
                 }
 
                 else if (!doubleQuote && ch == '\'')
@@ -806,7 +805,6 @@ namespace YamlInternal
                     {
                         ChRead();
                         sb.Append('\'');
-                        spaceCount = 0;
                     }
 
                     // Otherwise, the whole scalar has been read
@@ -818,28 +816,30 @@ namespace YamlInternal
 
                 else if (ch == '\n')
                 {
-                    // Strip leading and trailing spaces
-                    if (spaceCount > 0) sb.Remove(sb.Length - spaceCount, spaceCount);
-                    for (;;)
+                    TrimTrailingSpaceOrTab(sb);
+
+                    int newlines = (sb.Length == 0) ? 2 : 1;
+                    while (IsWhiteSpace(ChPeek()))
                     {
-                        ch = ChPeek();
-                        if (ch != ' ' && ch != '\t') break;
-                        ChRead();
+                        ch = ChRead();
+                        if (ch == '\n') ++newlines;
                     }
 
-                    // Insert one space
-                    sb.Append(' ');
-                    spaceCount = 1;
+                    // Write the correct number of newlines
+                    if (newlines > 1)
+                    {
+                        sb.Append('\n', newlines - 1);
+                    }
+                    else
+                    {
+                        sb.Append(' ');
+                    }
                 }
 
                 // Add the character and count trailing spaces.
                 else
                 {
                     sb.Append((char)ch);
-                    if (ch == ' ' || ch == '\t')
-                        ++spaceCount;
-                    else
-                        spaceCount = 0;
                 }
             }
 
