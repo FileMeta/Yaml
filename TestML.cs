@@ -57,6 +57,12 @@ namespace UnitTests
                         continue;
                     }
 
+                    if (line.Equals("--- in-yaml(+)", StringComparison.Ordinal))
+                    {
+                        ReadSection(reader, ref m_yamlStream);
+                        continue;
+                    }
+
                     if (line.Equals("--- in-yaml(<)", StringComparison.Ordinal))
                     {
                         ReadSectionIndented(reader, ref m_yamlStream);
