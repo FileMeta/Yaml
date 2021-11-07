@@ -934,19 +934,19 @@ namespace YamlInternal
                 if (ch == '\0') break;
                 if (ch == '\n')
                 {
-                    TrimTrailingSpaceOrTab(sb);
-
-                    // Read all spaces and newlines counting newlines
-                    // Note: Tabs are not included in folding or indentation
-                    int newlines = (sb.Length == 0) ? 2 : 1;
-                    while (IsSpaceOrNewline(ChPeek()))
-                    {
-                        ch = ChRead();
-                        if (ch == '\n') ++newlines;
-                    }
-
                     if (fold)
                     {
+                        TrimTrailingSpaceOrTab(sb);
+
+                        // Read all spaces and newlines counting newlines
+                        // Note: Tabs are not included in folding or indentation
+                        int newlines = (sb.Length == 0) ? 2 : 1;
+                        while (IsSpaceOrNewline(ChPeek()))
+                        {
+                            ch = ChRead();
+                            if (ch == '\n') ++newlines;
+                        }
+
                         // Write the correct number of newlines
                         if (newlines > 1)
                         {
@@ -964,11 +964,20 @@ namespace YamlInternal
                     }
                     else
                     {
-                        sb.Append('\n', newlines);
-                        if (m_lineIndent > indent)
+                        TrimTrailingSpaceOrTab(sb);
+                        for (; ; )
                         {
-                            sb.Append(' ', m_lineIndent - indent);
+                            sb.Append('\n');
+                            SkipSpaces(indent);
+                            for (; ; )
+                            {
+                                ch = ChRead();
+                                if (!IsSpaceOrTab(ch)) break;
+                                sb.Append(ch);
+                            }
+                            if (ch != '\n') break;
                         }
+                        if (ch != '\0') ChUnread(ch);
                     }
 
                     // Ends with a line of lesser indent
