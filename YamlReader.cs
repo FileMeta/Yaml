@@ -818,7 +818,7 @@ namespace YamlInternal
                 {
                     TrimTrailingSpaceOrTab(sb);
 
-                    int newlines = (sb.Length == 0) ? 2 : 1;
+                    int newlines = 1;
                     while (IsWhiteSpace(ChPeek()))
                     {
                         ch = ChRead();
@@ -928,8 +928,11 @@ namespace YamlInternal
             // Body of value is composed of all lines indented at least as much as the first line.
             // Indent characters are stripped. All other characters are preserved including the concluding \n
             // Embedded comments are not permitted.
+            // TODO: Review the folding code to see if common parts could be put into a function
+            // and whether any of this could be made more concise / efficient.
             for (;;)
             {
+                var prevIndent = m_lineIndent;
                 ch = ChRead();
                 if (ch == '\0') break;
                 if (ch == '\n')
@@ -947,17 +950,23 @@ namespace YamlInternal
                             if (ch == '\n') ++newlines;
                         }
 
-                        // Write the correct number of newlines
-                        if (newlines > 1)
+                        // Write the correct number of newlines and indentation
+                        if (prevIndent > indent || m_lineIndent > indent)
+                        {
+                            sb.Append('\n', newlines);
+                            sb.Append(' ', m_lineIndent - indent);
+                        }
+                        else if (newlines > 1)
                         {
                             sb.Append('\n', newlines - 1);
                         }
-                        else if (m_lineIndent >= indent)
+                        else if (m_lineIndent == indent)
                         {
                             sb.Append(' ');
                         }
-                        else if (m_lineIndent < indent && chomp != '-')
+                        else if (chomp != '-')
                         {
+                            Debug.Assert(m_lineIndent < indent);
                             // Final newline
                             sb.Append('\n');
                         }
