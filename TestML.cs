@@ -307,7 +307,14 @@ namespace UnitTests
             m_jsonStream.Position = 0;
             using (var reader = new StreamReader(m_jsonStream, Encoding.UTF8, true, 512, true))
             {
-                TraceReader(new JsonTextReader(reader));
+                try
+                {
+                    TraceReader(new JsonTextReader(reader));
+                }
+                catch (Exception err)
+                {
+                    Console.WriteLine(err.Message);
+                }
             }
         }
 

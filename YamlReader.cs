@@ -512,7 +512,7 @@ namespace YamlInternal
 
         // Lexing state
         LexerState m_state = LexerState.BetweenDocs;
-        int m_keyIndent = 0;
+        int m_keyIndent = -1;
 
         #region Public Interface
 
@@ -574,7 +574,7 @@ namespace YamlInternal
                     return;
                 }
 
-                else if (m_linePos == 0 && ReadMatch("...\n"))
+                else if (m_linePos == 0 && PeekMatch("...\n", true))
                 {
                     ChUnread('\n'); // Leave the trailing newline for the outer loop
                     m_state = LexerState.BetweenDocs;
@@ -583,22 +583,24 @@ namespace YamlInternal
                 }
 
                 else if (m_linePos == 0 && !m_options.AcceptContentOnStartDocumentLine
-                    && ReadMatch("---\n"))
+                    && PeekMatch("---\n", true))
                 {
                     ChUnread('\n'); // Leave the trailing newline for the outer loop
                     m_state = LexerState.InDoc;
                     SetToken(TokenType.BeginDoc);
+                    m_keyIndent = -1;
                     return;
                 }
 
                 else if (m_linePos == 0 && m_options.AcceptContentOnStartDocumentLine
-                    && ReadPrefix("---"))
+                    && PeekMatch("---", true, true))
                 {
                     m_state = LexerState.InDoc;
                     SetToken(TokenType.BeginDoc);
                     SkipInlineWhitespace();
                     m_linePos = 0;
                     m_lineIndent = 0;
+                    m_keyIndent = -1;
                     return;
                 }
 
@@ -954,7 +956,8 @@ namespace YamlInternal
                         if (prevIndent > indent || m_lineIndent > indent)
                         {
                             sb.Append('\n', newlines);
-                            sb.Append(' ', m_lineIndent - indent);
+                            if (m_lineIndent > indent)
+                                sb.Append(' ', m_lineIndent - indent);
                         }
                         else if (newlines > 1)
                         {
@@ -986,7 +989,7 @@ namespace YamlInternal
                             }
                             if (ch != '\n') break;
                         }
-                        if (ch != '\0') ChUnread(ch);
+                        ChUnread(ch);
                     }
 
                     // Ends with a line of lesser indent
@@ -1037,10 +1040,12 @@ namespace YamlInternal
             {
                 var ch = ChRead();
                 if (ch == '\0') break; // EOF
-                if ((ch == ':') && IsWhiteSpace(ChPeek()))
+
+                // Key for value indicator
+                if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek()))
                 {
                     ChUnread(ch);
-                    break; // Key or value indicator
+                    break;
                 }
 
                 // Collapse spaces
@@ -1059,6 +1064,13 @@ namespace YamlInternal
                                 endString = true;
                                 break;
                             }
+
+                            if (PeekDocumentBreak())
+                            {
+                                endString = true;
+                                break;
+                            }
+
                             ++newlines;
                         }
                         if (!IsSpaceOrNewline(ChPeek())) break;
@@ -1068,15 +1080,14 @@ namespace YamlInternal
                     if (newlines > 1)
                     {
                         sb.Append('\n', newlines - 1);
+                        continue;
                     }
                     else if (ChPeek() == '#') // Comment
                     {
                         break;
                     }
-                    else
-                    {
-                        sb.Append(' ');
-                    }
+
+                    sb.Append(' ');
                 }
 
                 else
@@ -1261,6 +1272,54 @@ namespace YamlInternal
             return count;
         }
 
+        bool PeekDocumentBreak()
+        {
+            return
+                PeekMatch("...\n", false)
+                || (m_options.AcceptContentOnStartDocumentLine
+                    ? PeekMatch("---", false, true)
+                    : PeekMatch("---\n", false));
+        }
+
+        bool PeekMatch(string match, bool consume, bool whitespaceMustFollow = false)
+        {
+            Debug.Assert(match.Length > 0);
+            int i;
+            char ch;
+            for (i = 0; i < match.Length; ++i)
+            {
+                ch = ChRead();
+                if (match[i] != ch)
+                {
+                    ChUnread(ch);
+                    break;
+                }
+            }
+
+            bool result = (i >= match.Length);
+
+            if (result && whitespaceMustFollow && !IsWhitespaceOrEof(ChPeek()))
+            {
+                result = false;
+            }
+
+            // Special case: newline matches EOF
+            if (i == match.Length - 1 && match[i] == '\n' && ChPeek() == '\0')
+                result = true;
+
+            // Undo the character reads
+            if (!result || !consume)
+            {
+                while (i > 0)
+                {
+                    --i;
+                    ChUnread(match[i]);
+                }
+            }
+
+            return result;
+        }
+
         // Return the amount of indent or int.MaxValue if the next line is blank
         private int PeekIndent()
         {
@@ -1275,7 +1334,7 @@ namespace YamlInternal
                 ++count;
             }
             bool blankLine = (ch == '\n');
-            for (int i = 0; i < count; ++i) ChUnread(' ');
+            ChUnread(' ', count);
             return blankLine ? int.MaxValue : count;
         }
 
@@ -1398,7 +1457,11 @@ namespace YamlInternal
 
         void ChUnread(char ch)
         {
-            Debug.Assert(ch != '\0');
+            if (ch == '\0')
+            {
+                Debug.Assert(m_readBuf.Count == 0 && m_reader.Peek() == -1);
+                return;
+            }
             m_readBuf.Push(ch);
             if (ch == '\n')
             {
@@ -1422,37 +1485,6 @@ namespace YamlInternal
             }
         }
 
-        /// <summary>
-        /// Look ahead and see if the text matches. If so, consume the text.
-        /// </summary>
-        /// <param name="value">The text to match.</param>
-        /// <returns>True if there's a match and the text was consumed. Otherwise false.</returns>
-        /// <remarks>
-        /// A special case is that a '\n' at the end of the value will match end-of-file.
-        /// </remarks>
-        bool ReadMatch(string value)
-        {
-            int i;
-            for (i=0; i<value.Length; ++i)
-            {
-                if (value[i] != ChPeek()) break;
-                ChRead();
-            }
-
-            // Special case: newline matches EOF
-            if (i == value.Length - 1 && value[i] == '\n' && ChPeek() == '\0') ++i;
-
-            if (i >= value.Length) return true;
-
-            // Undo the character reads
-            while (i > 0)
-            {
-                --i;
-                ChUnread(value[i]);
-            }
-            return false;
-        }
-
         // Looks for a single-character prefix followed by whitespace
         bool ReadPrefix(char value)
         {
@@ -1465,27 +1497,6 @@ namespace YamlInternal
             }
             SkipInlineWhitespace();
             return true;
-        }
-        
-        // Looks for a multi-character prefix followed by whitespace
-        bool ReadPrefix(string value)
-        {
-            int i;
-            for (i = 0; i < value.Length; ++i)
-            {
-                if (value[i] != ChPeek()) break;
-                ChRead();
-            }
-
-            if (i >= value.Length && IsWhiteSpace(ChPeek())) return true;
-
-            // Undo the character reads
-            while (i > 0)
-            {
-                --i;
-                ChUnread(value[i]);
-            }
-            return false;
         }
 
         /// <summary>
@@ -1526,6 +1537,11 @@ namespace YamlInternal
         #endregion
 
         #region Character Types
+
+        static bool IsWhitespaceOrEof(char ch)
+        {
+            return (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\0');
+        }
 
         static bool IsWhiteSpace(char ch)
         {

@@ -355,8 +355,7 @@ folded1: >
  In folded format, newlines are converted to spaces
  and trailing spaces are trimmed.
 folded2: >1-
-  Folded format also supports the indentation indicator
- and the chomping indicator.
+  Folded format also supports the indentation indicator and the chomping indicator.
 folded3: >
  In folded format, a newline followed by a blank line
 
