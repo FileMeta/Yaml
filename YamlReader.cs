@@ -1074,7 +1074,6 @@ namespace YamlInternal
             var sb = new StringBuilder();
             var indent = m_lineIndent;
 
-            bool foundNewline = false;
             bool endString = false;
             while (!endString)
             {
@@ -1084,9 +1083,6 @@ namespace YamlInternal
                 // Key for value indicator
                 if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek()))
                 {
-                    if (foundNewline && ch == ':')
-                        ReportError("Invalid newline in key.");
-
                     ChUnread(ch);
                     break;
                 }
@@ -1100,7 +1096,6 @@ namespace YamlInternal
                     {
                         if (ch == '\n')
                         {
-                            foundNewline = true;
                             MultiLineScalar = true;
 
                             if (expectingKey || PeekIndent() <= m_keyIndent)
