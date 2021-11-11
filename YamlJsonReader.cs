@@ -90,7 +90,7 @@ namespace FileMeta.Yaml
                                 {
                                     EndSequence();
                                 }
-                                else if (indentation > m_stackTop.PrevIndent && indentation <= m_currentIndent)
+                                else if (indentation <= m_currentIndent)
                                 {
                                     m_lexer.ReportError("Expected sequence indicator '-'");
                                 }
