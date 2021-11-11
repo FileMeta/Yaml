@@ -803,7 +803,11 @@ namespace YamlInternal
             for (;;)
             {
                 char ch = ChRead();
-                if (ch == '\0') break; // End of file
+                if (ch == '\0')
+                {
+                    ReportError("Unexpected end of file.");
+                    break;
+                }
                 if (doubleQuote && ch == '\"') break; // End quote
 
                 if (doubleQuote && ch == '\\')
