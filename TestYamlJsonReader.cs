@@ -27,7 +27,7 @@ namespace UnitTests
             //PerformTmlTest(Path.Combine(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite-Modified", "229Q.tml"), true);
 
             //PerformTests(Path.GetFullPath(c_testDir));
-            PerformTests(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite-Modified");
+            PerformTests(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite");
         }
 
         static void PerformTests(string testDir, params string[] filter)
