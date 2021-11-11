@@ -36,6 +36,7 @@ namespace UnitTests
             int loadErrors = 0;
             int aliasErrors = 0;
             int flowErrors = 0;
+            int multidocErrors = 0;
             int failures = 0;
 
             Console.WriteLine($"Performing tests in: {testDir}");
@@ -72,6 +73,11 @@ namespace UnitTests
                             Console.WriteLine($"    Flow Error: {errDetail.Message}");
                             ++flowErrors;
                         }
+                        else if (tml.Tags.Contains("multidoc"))
+                        {
+                            Console.WriteLine($"    Multidoc Error: {errDetail.Message}");
+                            ++multidocErrors;
+                        }
                         else
                         {
                             var saveColor = Console.ForegroundColor;
@@ -93,6 +99,8 @@ namespace UnitTests
                 Console.WriteLine($"{aliasErrors} Alias Not Supported");
             if (flowErrors > 0)
                 Console.WriteLine($"{flowErrors} Flow Not Supported");
+            if (multidocErrors > 0)
+                Console.WriteLine($"{multidocErrors} Multidoc Not Supported by test harness");
             if (failures > 0)
                 Console.WriteLine($"{failures} Test Failures");
             if (passed >= tests)
