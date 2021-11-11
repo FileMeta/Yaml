@@ -937,6 +937,7 @@ namespace YamlInternal
             // Embedded comments are not permitted.
             // TODO: Review the folding code to see if common parts could be put into a function
             // and whether any of this could be made more concise / efficient.
+            int suppressFold = 0;
             for (;;)
             {
                 var prevIndent = m_lineIndent;
@@ -946,37 +947,58 @@ namespace YamlInternal
                 {
                     if (fold)
                     {
-                        TrimTrailingSpaceOrTab(sb);
+                        int anchor = sb.Length;
 
-                        // Read all spaces and newlines counting newlines
-                        // Note: Tabs are not included in folding or indentation
-                        int newlines = (sb.Length == 0) ? 2 : 1;
-                        while (IsSpaceOrNewline(ChPeek()))
+                        Debug.Assert(sb.Length > 0);
+                        int newlines = 0;
+                        while (IsSpaceOrNewline(ch))
                         {
+                            sb.Append(ch);
+                            if (ch == '\n')
+                            {
+                                ++newlines;
+                                SkipSpaces(indent);
+                            }
                             ch = ChRead();
-                            if (ch == '\n') ++newlines;
+                        }
+                        ChUnread(ch);
+
+                        if (m_lineIndent > indent || ch == '\t')
+                        {
+                            suppressFold = 2;
                         }
 
-                        // Write the correct number of newlines and indentation
-                        if (prevIndent > indent || m_lineIndent > indent)
+                        // Line break folding
+                        if (suppressFold > 0)
                         {
-                            sb.Append('\n', newlines);
-                            if (m_lineIndent > indent)
-                                sb.Append(' ', m_lineIndent - indent);
+                            --suppressFold;
                         }
-                        else if (newlines > 1)
+                        else
                         {
-                            sb.Append('\n', newlines - 1);
-                        }
-                        else if (m_lineIndent == indent)
-                        {
-                            sb.Append(' ');
-                        }
-                        else if (chomp != '-')
-                        {
-                            Debug.Assert(m_lineIndent < indent);
-                            // Final newline
-                            sb.Append('\n');
+                            sb.Length = anchor;
+                            TrimTrailingSpaceOrTab(sb);
+
+                            // Write the correct number of newlines and indentation
+                            if (prevIndent > indent || m_lineIndent > indent)
+                            {
+                                sb.Append('\n', newlines);
+                                if (m_lineIndent > indent)
+                                    sb.Append(' ', m_lineIndent - indent);
+                            }
+                            else if (newlines > 1)
+                            {
+                                sb.Append('\n', newlines - 1);
+                            }
+                            else if (m_lineIndent == indent)
+                            {
+                                sb.Append(' ');
+                            }
+                            else if (chomp != '-')
+                            {
+                                Debug.Assert(m_lineIndent < indent);
+                                // Final newline
+                                sb.Append('\n');
+                            }
                         }
                     }
                     else
