@@ -867,39 +867,51 @@ namespace YamlInternal
 
         private void ReadBlockScalar()
         {
+            // == Read the Header
+
             char blockChar = ChRead();
             Debug.Assert(blockChar == '|' || blockChar == '>');
             bool fold = (blockChar == '>');
-
-            // Read indent value if any
-            int indent = 0;
             char ch = ChRead();
-            if (char.IsDigit(ch))
+
+            // Read indentation indicator and/or chomp indicator
+            int indent = 0;
+            char chomp = '\0';
+            for (; ; )
             {
-                indent = ch - '0';
-            }
-            else
-            {
-                ChUnread(ch);
+                if (ch >= '1' && ch  <= '9')
+                {
+                    if (indent != 0)
+                        ReportError("Multiple indent indicators on block scalar.");
+                    indent = ch - '0';
+                }
+                else if (ch == '+' || ch == '-')
+                {
+                    if (chomp != '\0')
+                        ReportError("Multiple chomping indicators on block scalar.");
+                    chomp = ch;
+                }
+                else
+                {
+                    break;
+                }
+                ch = ChRead();
             }
 
-            // Read chomp type if any
-            char chomp = ChRead();
-            if (chomp != '-' && chomp != '+')
+            while (IsSpaceOrTab(ch))
             {
-                ChUnread(chomp);
-                chomp = '\0';
+                ch = ChRead();
             }
 
-            // Skip to the end of the line. Only whitespace and comment should appear.
-            SkipInlineWhitespace();
-            ch = ChPeek();
             if (ch != '#' && ch != '\n')
             {
                 ReportError("Expected comment or newline.");
             }
-            SkipBalanceOfLine();
-            ChRead();   // Read the newline
+
+            while (ch != '\n' && ch != '\0')
+                ch = ChRead();
+
+            // == Read the Body of the scalar
 
             StringBuilder sb = new StringBuilder();
 
