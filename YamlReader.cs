@@ -1054,8 +1054,7 @@ namespace YamlInternal
                 }
 
                 // Collapse spaces
-                // Note, tabs are not included in space condensing and line folding
-                if (IsSpaceOrNewline(ch))
+                if (IsWhiteSpace(ch))
                 {
                     // Skip all spaces and newlines
                     int newlines = 0;
@@ -1078,8 +1077,12 @@ namespace YamlInternal
 
                             ++newlines;
                         }
-                        if (!IsSpaceOrNewline(ChPeek())) break;
                         ch = ChRead();
+                        if (!IsWhiteSpace(ch))
+                        {
+                            ChUnread(ch);
+                            break;
+                        }
                     }
 
                     if (newlines > 1)
