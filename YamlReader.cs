@@ -857,17 +857,22 @@ namespace YamlInternal
 
             // Read indent value if any
             int indent = 0;
-            if (char.IsDigit(ChPeek()))
+            char ch = ChRead();
+            if (char.IsDigit(ch))
             {
-                indent = ChRead() - '0';
+                indent = ch - '0';
+            }
+            else
+            {
+                ChUnread(ch);
             }
 
             // Read chomp type if any
-            char chomp = '\0';
-            char ch = ChPeek();
-            if (ch == '-' || ch == '+')
+            char chomp = ChRead();
+            if (chomp != '-' && chomp != '+')
             {
-                chomp = ChRead();
+                ChUnread(chomp);
+                chomp = '\0';
             }
 
             // Skip to the end of the line. Only whitespace and comment should appear.
