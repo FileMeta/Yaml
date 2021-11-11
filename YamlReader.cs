@@ -537,7 +537,7 @@ namespace YamlInternal
             TokenValue = value;
         }
 
-        public void MoveNext()
+        public void MoveNext(bool expectingKey = false)
         {
             // If at the beginning of the file, move to the beginning of the next document (sensitive to options)
             if (TokenType == TokenType.BetweenDocs)
@@ -671,7 +671,7 @@ namespace YamlInternal
 
                 else
                 {
-                    ReadPlainScalar();
+                    ReadPlainScalar(expectingKey);
                     Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
@@ -1057,11 +1057,12 @@ namespace YamlInternal
             SetToken(TokenType.Scalar, indent, sb.ToString());
         }
 
-        private void ReadPlainScalar()
+        private void ReadPlainScalar(bool expectingKey)
         {
             var sb = new StringBuilder();
             var indent = m_lineIndent;
 
+            bool foundNewline = false;
             bool endString = false;
             while (!endString)
             {
@@ -1071,6 +1072,9 @@ namespace YamlInternal
                 // Key for value indicator
                 if ((ch == ':' || ch == '?') && IsWhiteSpace(ChPeek()))
                 {
+                    if (foundNewline && ch == ':')
+                        ReportError("Invalid newline in key.");
+
                     ChUnread(ch);
                     break;
                 }
@@ -1084,7 +1088,9 @@ namespace YamlInternal
                     {
                         if (ch == '\n')
                         {
-                            if (PeekIndent() <= m_keyIndent)
+                            foundNewline = true;
+
+                            if (expectingKey || PeekIndent() <= m_keyIndent)
                             {
                                 ChUnread('\n');
                                 endString = true;

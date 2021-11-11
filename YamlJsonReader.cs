@@ -63,13 +63,13 @@ namespace FileMeta.Yaml
                     case YamlInternal.TokenType.BeginDoc:
                     case YamlInternal.TokenType.Tag:
                     case YamlInternal.TokenType.Directive:
-                        m_lexer.MoveNext();
+                        m_lexer.MoveNext(false);
                         break;
 
                     case YamlInternal.TokenType.NewLine:
                         {
                             var indentation = m_lexer.TokenIndent;
-                            m_lexer.MoveNext(); // Do this first so that we can look ahead
+                            m_lexer.MoveNext(ExpectingKey); // Do this first so that we can look ahead
 
                             // Ignore blank lines
                             if (m_lexer.TokenType == YamlInternal.TokenType.NewLine
@@ -105,7 +105,7 @@ namespace FileMeta.Yaml
                             // Write out an empty key
                             EnqueueKey(m_lexer.TokenIndent, string.Empty);
                         }
-                        m_lexer.MoveNext();
+                        m_lexer.MoveNext(false);
                         break;
 
                     case YamlInternal.TokenType.KeyPrefix:
@@ -121,7 +121,7 @@ namespace FileMeta.Yaml
                         if (StackTopType == StackEntryType.Sequence)
                         {
                             m_lexer.ReportError("Invalid Key Prefix ('?') in Sequence");
-                            m_lexer.MoveNext();
+                            m_lexer.MoveNext(false);
                         }
 
                         // If expecting a value, then that value is empty.
@@ -132,7 +132,7 @@ namespace FileMeta.Yaml
                         }
 
                         // Finish reading the keyPrefix
-                        m_lexer.MoveNext();
+                        m_lexer.MoveNext(true);
 
                         // If the next token is not a scalar then the key is empty
                         if (m_lexer.TokenType != YamlInternal.TokenType.Scalar)
@@ -143,7 +143,7 @@ namespace FileMeta.Yaml
 
                         // Report the key
                         EnqueueToken(JsonToken.PropertyName, m_lexer.TokenValue);
-                        m_lexer.MoveNext();
+                        m_lexer.MoveNext(false);
                         break;
 
                     case YamlInternal.TokenType.Scalar:
@@ -151,12 +151,12 @@ namespace FileMeta.Yaml
                             // Save and read ahead so we know what to do
                             var scalar = m_lexer.TokenValue;
                             var indent = m_lexer.TokenIndent;
-                            m_lexer.MoveNext();
+                            m_lexer.MoveNext(ExpectingKey);
 
                             if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
                             {
                                 EnqueueKey(indent, scalar);
-                                m_lexer.MoveNext(); // Use up the ValuePrefix
+                                m_lexer.MoveNext(false); // Use up the ValuePrefix
                             }
                             else
                             {
@@ -185,7 +185,7 @@ namespace FileMeta.Yaml
                         {
                             m_lexer.ReportError("Unexpected sequence indicator '-'.");
                         }
-                        m_lexer.MoveNext();
+                        m_lexer.MoveNext(false);
                         break;
 
                     case YamlInternal.TokenType.EndDoc:
