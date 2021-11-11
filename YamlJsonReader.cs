@@ -84,10 +84,16 @@ namespace FileMeta.Yaml
                             // TODO: See if there's a cleaner/simpler way to do this combined with the prior test.
                             // Sequence indicator can be at the exact indent of its owner.
                             if (StackTopType == StackEntryType.Sequence
-                                && m_lexer.TokenType != YamlInternal.TokenType.SequenceIndicator
-                                && indentation == m_stackTop.PrevIndent)
+                                && m_lexer.TokenType != YamlInternal.TokenType.SequenceIndicator)
                             {
-                                EndSequence();
+                                if (indentation == m_stackTop.PrevIndent)
+                                {
+                                    EndSequence();
+                                }
+                                else if (indentation > m_stackTop.PrevIndent && indentation <= m_currentIndent)
+                                {
+                                    m_lexer.ReportError("Expected sequence indicator '-'");
+                                }
                             }
                         }
                         break;
