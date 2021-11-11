@@ -128,10 +128,9 @@ namespace FileMeta.Yaml
                         // Finish reading the keyPrefix
                         m_lexer.MoveNext();
 
-                        // If the next token is not a scalar report the error
+                        // If the next token is not a scalar then the key is empty
                         if (m_lexer.TokenType != YamlInternal.TokenType.Scalar)
                         {
-                            m_lexer.ReportError("Expected key value.");
                             EnqueueToken(JsonToken.PropertyName, string.Empty);
                             break;
                         }
