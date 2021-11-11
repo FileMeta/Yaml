@@ -112,15 +112,16 @@ namespace UnitTests
             // Read the Section
             using (var writer = new StreamWriter(dst, s_UTF8, 512, true))
             {
+                var line = reader.PeekLine();
+                if (line.StartsWith("---")) throw new ApplicationException("Bad TestML - empty section.");
                 for (; ; )
                 {
-                    var line = reader.PeekLine();
+                    line = reader.ReadLine();
                     if (line == null) break;
-                    if (line.StartsWith("---")) break;
-                    reader.ReadLine();
-
+                    if (line.Length == 0 && (reader.PeekLine()?.StartsWith("---") ?? false)) break;
                     line = line.Replace("<SPC>", " ").Replace("<TAB>", "\t");
                     writer.WriteLine(line);
+                    if (reader.PeekLine()?.StartsWith("---") ?? false) break;
                 }
             }
             dst.Position = 0;
