@@ -33,23 +33,53 @@ namespace UnitTests
         public static void Compare(Stream yamlStream, YamlReaderOptions yamlOptions, Stream jsonStream)
         {
             // Parse the YAML into a structure
-            JToken fromYaml;
-            using (var reader = new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions))
-            {
-                fromYaml = JToken.ReadFrom(reader);
-            }
-#if TRACE_YAML_TO_JSON
-            Dump(fromYaml);
-#endif
+            JToken fromYaml = ReadJsonFromYaml(yamlStream, yamlOptions);
 
             // Parse the JSON into a structure
-            JToken fromJson;
-            using (var reader = new StreamReader(jsonStream, Encoding.UTF8, true, 512, true))
-            {
-                fromJson = JToken.ReadFrom(new JsonTextReader(reader));
-            }
+            JToken fromJson = ReadJsonFromJson(jsonStream);
 
             CompareJsonTrees(fromYaml, fromJson);
+        }
+
+        static JToken ReadJsonFromYaml(Stream yamlStream, YamlReaderOptions yamlOptions)
+        {
+            return ReadJson(delegate {
+                yamlStream.Position = 0;
+                return new YamlJsonReader(new StreamReader(yamlStream, Encoding.UTF8, true, 512, true), yamlOptions);
+            });
+        }
+
+        static JToken ReadJsonFromJson(Stream jsonStream)
+        {
+            return ReadJson(delegate
+            {
+                jsonStream.Position = 0;
+                return new JsonTextReader(new StreamReader(jsonStream, Encoding.UTF8, true, 512, true));
+            });
+        }
+
+        static JToken ReadJson(Func<JsonReader> openReader)
+        {
+            try
+            {
+                using (var reader = openReader())
+                {
+                    return JToken.ReadFrom(reader);
+                }
+            }
+            catch (JsonReaderException)
+            {
+                // See if it's an empty document
+                using (var reader = openReader())
+                {
+                    if (!reader.Read())
+                    {
+                        return new JArray();    // Empty array. Not a perfect mapping but as close as I can get.
+                    }
+                }
+
+                throw;  // Re-throw the exception
+            }
         }
 
         static void CompareJsonTrees(JToken value, JToken expected)
