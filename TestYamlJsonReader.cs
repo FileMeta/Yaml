@@ -24,7 +24,7 @@ namespace UnitTests
 
             // When debugging, put first test here
             //PerformTmlTest(Path.Combine(Path.GetFullPath(c_testDir), "JR7V-mod.tml"), true);
-            //PerformTmlTest(Path.Combine(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite-Modified", "229Q.tml"), true);
+            //PerformTmlTest(Path.Combine(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite", "HU3P-mod.tml"), true);
 
             //PerformTests(Path.GetFullPath(c_testDir));
             PerformTests(@"C:\Users\brand\source\FileMeta\Yaml-Test-Suite");
