@@ -151,10 +151,13 @@ namespace FileMeta.Yaml
                             // Save and read ahead so we know what to do
                             var scalar = m_lexer.TokenValue;
                             var indent = m_lexer.TokenIndent;
+                            var multiLine = m_lexer.MultiLineScalar;
                             m_lexer.MoveNext(ExpectingKey);
 
                             if (m_lexer.TokenType == YamlInternal.TokenType.ValuePrefix)
                             {
+                                if (multiLine)
+                                    m_lexer.ReportError("Invalid line break in key.");
                                 EnqueueKey(indent, scalar);
                                 m_lexer.MoveNext(false); // Use up the ValuePrefix
                             }

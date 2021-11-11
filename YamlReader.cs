@@ -530,6 +530,14 @@ namespace YamlInternal
 
         public int TokenIndent { get; private set; }
 
+        /// <summary>
+        /// When TokenType is <see cref="TokenType.Scalar"/> indicates that the input was a plain or quoted scalar with multiple lines.
+        /// </summary>
+        /// <remarks>
+        /// The output may have been folded so it is not necessarily multiline.
+        /// </remarks>
+        public bool MultiLineScalar { get; private set; }
+
         void SetToken(TokenType type, int indent = 0, string value = null)
         {
             TokenType = type;
@@ -539,6 +547,8 @@ namespace YamlInternal
 
         public void MoveNext(bool expectingKey = false)
         {
+            MultiLineScalar = false;
+
             // If at the beginning of the file, move to the beginning of the next document (sensitive to options)
             if (TokenType == TokenType.BetweenDocs)
             {
@@ -621,7 +631,7 @@ namespace YamlInternal
                 else if (ch == '\'' || ch == '"')
                 {
                     m_state = LexerState.InDoc;
-                    ReadQuoteScalar();
+                    ReadQuoteScalar(expectingKey);
                     Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
@@ -779,12 +789,13 @@ namespace YamlInternal
             }
         }
 
-        private void ReadQuoteScalar()
+        private void ReadQuoteScalar(bool expectingKey)
         {
             // In quote scalars, line breaks are converted to spaces.
             // Leading and trailing spaces on line breaks are stripped.
             // Double-quote scalars use backslash escaping while single-quote
             // scalars allow the quote to be doubled.
+            int indent = m_lineIndent;
             char quoteChar = ChRead();
             Debug.Assert(quoteChar == '"' || quoteChar == '\'');
             bool doubleQuote = (quoteChar == '"');
@@ -818,6 +829,7 @@ namespace YamlInternal
 
                 else if (ch == '\n')
                 {
+                    MultiLineScalar = true;
                     TrimTrailingSpaceOrTab(sb);
 
                     int newlines = 1;
@@ -846,7 +858,7 @@ namespace YamlInternal
             }
 
             // Return the result
-            SetToken(TokenType.Scalar, m_lineIndent, sb.ToString());
+            SetToken(TokenType.Scalar, indent, sb.ToString());
         }
 
         private void ReadBlockScalar()
@@ -1089,6 +1101,7 @@ namespace YamlInternal
                         if (ch == '\n')
                         {
                             foundNewline = true;
+                            MultiLineScalar = true;
 
                             if (expectingKey || PeekIndent() <= m_keyIndent)
                             {
