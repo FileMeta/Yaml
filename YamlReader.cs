@@ -919,14 +919,19 @@ namespace YamlInternal
                 // Skip empty lines and set the indentation according to the first non-empty line.
                 int maxEmptyLen = 0;
                 int newlines = 1;
-                while (IsSpaceOrNewline(ChPeek()))
+                for (; ; )
                 {
-                    if (maxEmptyLen < m_lineIndent) maxEmptyLen = m_lineIndent;
                     ch = ChRead();
-                    if (ch == '\n')
+                    if (ch == '\n' || ch == '\0')
                     {
                         ++newlines;
                     }
+                    if (!IsSpaceOrNewline(ch))
+                    {
+                        ChUnread(ch);
+                        break;
+                    }
+                    if (maxEmptyLen < m_lineIndent) maxEmptyLen = m_lineIndent;
                 }
 
                 indent = m_lineIndent;
@@ -934,18 +939,29 @@ namespace YamlInternal
                 {
                     ReportError("Excessive spaces on blank line.");
                 }
+
+                if (indent == 0 && m_keyIndent >= 0) // Nothing but empty lines
+                {
+                    // Handle newlines according to fold and chomp rules
+                    if (chomp != '-')
+                    {
+                        --newlines; // Last newline doesn't count because it's part of whatever's next.
+                        if (fold)
+                            --newlines;
+                        if (newlines > 1 && chomp == '\0')
+                            newlines = 1;
+                        if (newlines > 0)
+                            sb.Append('\n', newlines);
+                    }
+
+                    SetToken(TokenType.Scalar, indent, sb.ToString());
+                    ChUnread('\n'); // Restore the final newline to be read by the outer loop
+                    return;
+                }
+
                 if (newlines > 1)
                 {
                     sb.Append('\n', newlines - 1);
-                }
-
-                // TODO: It may be possible to optimize this test or eliminate the condition entirely.
-                // Because if the test isn't present, the scalar may auto-finish. Test and verify.
-                if (indent == 0 && m_keyIndent >= 0) // Nothing but empty lines
-                {
-                    ChUnread('\n'); // Restore the newline to be read by the outer loop
-                    SetToken(TokenType.Scalar, indent, sb.ToString());
-                    return;
                 }
             }
             else
@@ -1053,23 +1069,7 @@ namespace YamlInternal
                 }
             }
 
-            // Handle "chomp" options.
-            //  chomp == '-': Strip all trailing newlines.
-            //  chomp == '\0': Default, strip all but one trailing newline
-            //  chomp == '+': Keep all trailing newlines
-            if (chomp == '-' || chomp == '\0')
-            {
-                // Find the end of the text (before the first trailing newline
-                int end;
-                for (end = sb.Length; end>0; --end)
-                {
-                    if (sb[end - 1] != '\n') break;
-                }
-
-                if (chomp == '\0') ++end;
-
-                if (sb.Length > end) sb.Length = end;
-            }
+            ApplyChomp(chomp, sb);
 
             ChUnread('\n'); // Restore the newline to be read by the outer loop
 
@@ -1153,6 +1153,24 @@ namespace YamlInternal
 
             // Return the scalar
             SetToken(TokenType.Scalar, indent, sb.ToString());
+        }
+
+        private static void ApplyChomp(char chomp, StringBuilder sb)
+        {
+            // chomp == '-': Strip all trailing newlines.
+            // chomp == '\0': Default, strip all but one trailing newline
+            // chomp == '+': Keep all trailing newlines
+            if (chomp == '+') return;
+
+            // Find the end of the text (before the first trailing newline
+            int end;
+            for (end = sb.Length; end > 0; --end)
+            {
+                if (sb[end - 1] != '\n') break;
+            }
+
+            if (chomp == '\0') ++end;
+            if (sb.Length > end) sb.Length = end;
         }
 
         private void ReadTag()
