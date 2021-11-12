@@ -562,6 +562,7 @@ namespace YamlInternal
             for (;;)
             {
                 SkipSpaces();
+                int tokenPos = m_linePos;
                 char ch = ChPeek();
 
                 if (ch == 0)
@@ -656,17 +657,14 @@ namespace YamlInternal
                     SetToken(TokenType.ValuePrefix, m_lineIndent);
                     m_state = LexerState.InDoc;
                     m_keyIndent = m_lineIndent;
-                    // TODO: Instead of this, make the indentation of sequence prefixes be their position
-                    m_lineIndent = m_linePos; // Allow a sequence or mapping to start on the same line
                     return;
                 }
 
                 else if (ReadPrefix('-')) // Sequence entry prefix
                 {
-                    SetToken(TokenType.SequenceIndicator, m_lineIndent);
+                    SetToken(TokenType.SequenceIndicator, tokenPos);
                     m_state = LexerState.InDoc;
-                    m_keyIndent = m_lineIndent;
-                    // TODO: Instead of this, make the indentation of sequence prefixes be their position
+                    m_keyIndent = tokenPos;
                     m_lineIndent = m_linePos; // Allow another sequence or mapping to start on the same line
                     return;
                 }
