@@ -134,6 +134,10 @@ namespace FileMeta.Yaml
                         // Finish reading the keyPrefix
                         m_lexer.MoveNext(false);
 
+                        // Skip any tags
+                        while (m_lexer.TokenType == YamlInternal.TokenType.Tag)
+                            m_lexer.MoveNext(false);
+
                         // If the next token is not a scalar then the key is empty
                         if (m_lexer.TokenType != YamlInternal.TokenType.Scalar)
                         {
