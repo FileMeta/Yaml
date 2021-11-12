@@ -868,7 +868,6 @@ namespace YamlInternal
         private void ReadBlockScalar()
         {
             // == Read the Header
-
             char blockChar = ChRead();
             Debug.Assert(blockChar == '|' || blockChar == '>');
             bool fold = (blockChar == '>');
@@ -941,7 +940,9 @@ namespace YamlInternal
                     sb.Append('\n', newlines - 1);
                 }
 
-                if (indent == 0) // Nothing but empty lines
+                // TODO: It may be possible to optimize this test or eliminate the condition entirely.
+                // Because if the test isn't present, the scalar may auto-finish. Test and verify.
+                if (indent == 0 && m_keyIndent >= 0) // Nothing but empty lines
                 {
                     ChUnread('\n'); // Restore the newline to be read by the outer loop
                     SetToken(TokenType.Scalar, indent, sb.ToString());
