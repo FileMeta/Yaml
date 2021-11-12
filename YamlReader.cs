@@ -1252,20 +1252,32 @@ namespace YamlInternal
             var sb = new StringBuilder();
             char ch = ChRead();
             Debug.Assert(ch == '!');
-            for (; ; )
+            sb.Append(ch);
+
+            ch = ChRead();
+            if (ch == '<') // Literal form
             {
                 sb.Append(ch);
-
-                ch = ChRead();
-                if (IsFlowReservedChar(ch))
+                do
                 {
-                    ReportError($"Invalid tag character: '{ch}'");
-                    break;
-                }
-                if (ch == '\0' || ch == '#' || IsWhiteSpace(ch)) break;
+                    ch = ChRead();
+                    sb.Append(ch);
+                } while (ch != '>');
             }
-            ChUnread(ch);
-
+            else
+            {
+                for (; ; )
+                {
+                    if (IsFlowReservedChar(ch))
+                    {
+                        ReportError($"Invalid tag character: '{ch}'");
+                        break;
+                    }
+                    if (ch == '\0' || ch == '#' || IsWhiteSpace(ch)) break;
+                    ch = ChRead();
+                }
+                ChUnread(ch);
+            }
             SkipInlineWhitespace();
 
             // Return the tag

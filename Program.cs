@@ -14,7 +14,7 @@ namespace UnitTests
 {
     class Program
     {
-        static bool s_trace = true; // Manually set to true for verbose output
+        static bool s_trace = false; // Manually set to true for verbose output
 
         static int s_successCount;
         static int s_failureCount;
