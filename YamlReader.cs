@@ -559,7 +559,7 @@ namespace YamlInternal
 
             // Keep trying until we successfully read a token
             SetToken(TokenType.Null);
-            for (;;)
+            for (; ; )
             {
                 SkipSpaces();
                 int tokenPos = m_linePos;
@@ -649,7 +649,7 @@ namespace YamlInternal
                 {
                     m_state = LexerState.InDoc;
                     SetToken(TokenType.KeyPrefix, m_lineIndent);
-                    m_keyIndent = m_linePos-1;
+                    m_keyIndent = m_linePos - 1;
                     return;
                 }
 
@@ -780,7 +780,7 @@ namespace YamlInternal
         {
             // Simply read to the end of the line (but not including EOLN
             char ch;
-            for (;;)
+            for (; ; )
             {
                 ch = ChPeek();
                 if (ch == '\n' || ch == '\0') break;
@@ -799,7 +799,7 @@ namespace YamlInternal
             Debug.Assert(quoteChar == '"' || quoteChar == '\'');
             bool doubleQuote = (quoteChar == '"');
             StringBuilder sb = new StringBuilder();
-            for (;;)
+            for (; ; )
             {
                 char ch = ChRead();
                 if (ch == '\0')
@@ -877,7 +877,7 @@ namespace YamlInternal
             char chomp = '\0';
             for (; ; )
             {
-                if (ch >= '1' && ch  <= '9')
+                if (ch >= '1' && ch <= '9')
                 {
                     if (indent != 0)
                         ReportError("Multiple indent indicators on block scalar.");
@@ -975,7 +975,7 @@ namespace YamlInternal
             // TODO: Review the folding code to see if common parts could be put into a function
             // and whether any of this could be made more concise / efficient.
             int suppressFold = 0;
-            for (;;)
+            for (; ; )
             {
                 var prevIndent = m_lineIndent;
                 ch = ChRead();
@@ -1175,14 +1175,22 @@ namespace YamlInternal
 
         private void ReadTag()
         {
-            char ch;
             var sb = new StringBuilder();
+            char ch = ChRead();
+            Debug.Assert(ch == '!');
             for (; ; )
             {
-                sb.Append(ChRead());
-                ch = ChPeek();
+                sb.Append(ch);
+
+                ch = ChRead();
+                if (IsFlowReservedChar(ch))
+                {
+                    ReportError($"Invalid tag character: '{ch}'");
+                    break;
+                }
                 if (ch == '\0' || ch == '#' || IsWhiteSpace(ch)) break;
             }
+            ChUnread(ch);
 
             SkipInlineWhitespace();
 
@@ -1410,14 +1418,14 @@ namespace YamlInternal
         static void TrimTrailingSpaceOrTab(StringBuilder sb)
         {
             int end = sb.Length;
-            while (end > 0 && IsSpaceOrTab(sb[end-1])) --end;
+            while (end > 0 && IsSpaceOrTab(sb[end - 1])) --end;
             sb.Length = end;
         }
 
         static void TrimTrailingWhitespace(StringBuilder sb)
         {
             int end = sb.Length;
-            while (end > 0 && IsWhiteSpace(sb[end-1])) --end;
+            while (end > 0 && IsWhiteSpace(sb[end - 1])) --end;
             sb.Length = end;
         }
 
@@ -1577,7 +1585,7 @@ namespace YamlInternal
         {
             int len = value.Length;
             Debug.Assert(len > 0);
-            for (;;)
+            for (; ; )
             {
                 char ch = ChRead();
                 if (ch == '\0') return false;   // EOF
@@ -1626,6 +1634,11 @@ namespace YamlInternal
         static bool IsSpaceOrNewline(char ch)
         {
             return (ch == ' ' || ch == '\n');
+        }
+
+        static bool IsFlowReservedChar(char ch)
+        {
+            return (ch == '[' || ch == ']' || ch == '{' || ch == '}' || ch == ',');
         }
 
         #endregion Character Types
