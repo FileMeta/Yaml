@@ -36,7 +36,7 @@ namespace UnitTests
 
         static void PerformAllTests()
         {
-            if (!PerformMicroYamlTests()) return;
+            //if (!PerformMicroYamlTests()) return;
             Console.WriteLine();
             TestYamlJsonReader.PerformTests();
         }

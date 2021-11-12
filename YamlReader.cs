@@ -951,14 +951,7 @@ namespace YamlInternal
             }
             else
             {
-                int spaces = SkipSpaces(indent);
-                if (spaces < indent)
-                {
-                    // Empty value
-                    ChUnread(' ', spaces);
-                    SetToken(TokenType.Scalar, indent, string.Empty);
-                    return;
-                }
+                SkipSpaces(indent);
             }
 
             // Body of value is composed of all lines indented at least as much as the first line.
@@ -978,7 +971,6 @@ namespace YamlInternal
                     {
                         int anchor = sb.Length;
 
-                        Debug.Assert(sb.Length > 0);
                         int newlines = 0;
                         while (IsSpaceOrNewline(ch))
                         {
