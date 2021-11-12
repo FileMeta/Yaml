@@ -241,6 +241,10 @@ namespace UnitTests
             {
                 hasError = true;
             }
+            catch (Exception)
+            {
+                hasError = true;
+            }
             if (!hasError)
             {
                 throw new ApplicationException("Expected YamlReaderException but parse succeeded.");
