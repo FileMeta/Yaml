@@ -983,7 +983,7 @@ namespace YamlInternal
             while (ch != '\n' && ch != '\0')
                 ch = ChRead();
 
-            // == Read the Body of the scalar
+            // == Detect the indent if needed
 
             StringBuilder sb = new StringBuilder();
 
@@ -1048,7 +1048,7 @@ namespace YamlInternal
             // Embedded comments are not permitted.
             // TODO: Review the folding code to see if common parts could be put into a function
             // and whether any of this could be made more concise / efficient.
-            int suppressFold = 0;
+            int suppressFold = (ch == '\t') ? 1 : 0;
             for (; ; )
             {
                 var prevIndent = m_lineIndent;
