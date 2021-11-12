@@ -545,7 +545,7 @@ namespace YamlInternal
             TokenValue = value;
         }
 
-        public void MoveNext(bool expectingKey = false)
+        public void MoveNext(bool implicitKey = false)
         {
             MultiLineScalar = false;
 
@@ -632,7 +632,7 @@ namespace YamlInternal
                 else if (ch == '\'' || ch == '"')
                 {
                     m_state = LexerState.InDoc;
-                    ReadQuoteScalar(expectingKey);
+                    ReadQuoteScalar(implicitKey);
                     Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
@@ -649,6 +649,7 @@ namespace YamlInternal
                 {
                     m_state = LexerState.InDoc;
                     SetToken(TokenType.KeyPrefix, m_lineIndent);
+                    m_keyIndent = m_linePos-1;
                     return;
                 }
 
@@ -679,7 +680,7 @@ namespace YamlInternal
 
                 else
                 {
-                    ReadPlainScalar(expectingKey);
+                    ReadPlainScalar(implicitKey);
                     Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
@@ -787,7 +788,7 @@ namespace YamlInternal
             }
         }
 
-        private void ReadQuoteScalar(bool expectingKey)
+        private void ReadQuoteScalar(bool implicitKey)
         {
             // In quote scalars, line breaks are converted to spaces.
             // Leading and trailing spaces on line breaks are stripped.
