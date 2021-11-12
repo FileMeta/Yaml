@@ -14,7 +14,7 @@ namespace UnitTests
 {
     class Program
     {
-        static bool s_trace = false; // Manually set to true for verbose output
+        static bool s_trace = true; // Manually set to true for verbose output
 
         static int s_successCount;
         static int s_failureCount;
@@ -36,7 +36,7 @@ namespace UnitTests
 
         static void PerformAllTests()
         {
-            //if (!PerformMicroYamlTests()) return;
+            if (!PerformMicroYamlTests()) return;
             Console.WriteLine();
             TestYamlJsonReader.PerformTests();
         }
@@ -323,8 +323,8 @@ values the newlines are converted into spaces
 and trailing spaces are stripped. To embed
 a literal newline, use the \n escape. To embed quotes, use the \""quote\"" escape.""
 double-quote3: ""You may escape the \
-newline itself thereby supporting trailing spaces and\
-embedded newlines.""
+newline itself which causes it to be ignored. This supports trailing spaces but\
+embedded\nnewlines must use \\n.""
 double-quote4: ""Hex \x7E and Unicode \u007B escapes are also supported.""
 
 # Literal block format is indicated by the | character
@@ -434,7 +434,7 @@ Edge12: End of file.
             new KeyValuePair<string, string>("single-quote2", "In single-quoted format you may have line breaks. Line breaks in this format use line-folding meaning that they are converted to a single space character and not preserved literally."),
             new KeyValuePair<string, string>("double-quote1", "This a double-quote value.\nIt uses c-style escaping."),
             new KeyValuePair<string, string>("double-quote2", "Like single-quote values, double-quote values may have embedded line breaks. Also like single-quote values the newlines are converted into spaces and trailing spaces are stripped. To embed a literal newline, use the \n escape. To embed quotes, use the \"quote\" escape."),
-            new KeyValuePair<string, string>("double-quote3", "You may escape the \nnewline itself thereby supporting trailing spaces and\nembedded newlines."),
+            new KeyValuePair<string, string>("double-quote3", "You may escape the newline itself which causes it to be ignored. This supports trailing spaces butembedded\nnewlines must use \\n."),
             new KeyValuePair<string, string>("double-quote4", "Hex ~ and Unicode { escapes are also supported."),
             new KeyValuePair<string, string>("literal1", "Values in literal block format must be indented.\n\n\nNewlines are significant and preserved.\nTrailing spaces are trimmed.\n\nIndentation beyond the amount of the first line\n is also preserved.\n"),
             new KeyValuePair<string, string>("literal2", "A dash after the block indicator means to \"chomp\" the\nterminating newline in literal block format."),
