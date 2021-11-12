@@ -629,10 +629,18 @@ namespace YamlInternal
                     continue;
                 }
 
-                else if (ch == '\'' || ch == '"')
+                else if (ch == '\'')
                 {
                     m_state = LexerState.InDoc;
-                    ReadQuoteScalar();
+                    ReadSingleQuoteScalar();
+                    Debug.Assert(TokenType == TokenType.Scalar);
+                    return;
+                }
+
+                else if (ch == '"')
+                {
+                    m_state = LexerState.InDoc;
+                    ReadDoubleQuoteScalar();
                     Debug.Assert(TokenType == TokenType.Scalar);
                     return;
                 }
@@ -788,12 +796,85 @@ namespace YamlInternal
             }
         }
 
-        private void ReadQuoteScalar()
+        private void ReadSingleQuoteScalar()
         {
-            // In quote scalars, line breaks are converted to spaces.
+            // In single-quote scalars, line breaks are converted to spaces.
             // Leading and trailing spaces on line breaks are stripped.
-            // Double-quote scalars use backslash escaping while single-quote
-            // scalars allow the quote to be doubled.
+            // Doubling the quote embeds a quote mark. Line breaks are folded.
+            int indent = m_lineIndent;
+            char quoteChar = ChRead();
+            Debug.Assert(quoteChar == '\'');
+            StringBuilder sb = new StringBuilder();
+            for (; ; )
+            {
+                char ch = ChRead();
+                if (ch == '\0')
+                {
+                    ReportError("Unexpected end of file.");
+                    break;
+                }
+
+                if (ch == '\'')
+                {
+                    // Doubled single-quotes converted to one single-quote.
+                    if (ChPeek() == '\'')
+                    {
+                        ChRead();
+                        sb.Append('\'');
+                    }
+
+                    // Otherwise, the whole scalar has been read
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                else if (ch == '\n')
+                {
+                    TrimTrailingSpaceOrTab(sb);
+
+                    int newlines = 1;
+                    for (; ; )
+                    {
+                        ch = ChRead();
+                        if (ch == '\n') ++newlines;
+                        if (!IsWhiteSpace(ch))
+                        {
+                            ChUnread(ch);
+                            break;
+                        }
+                    }
+
+                    // Write the correct number of newlines
+                    if (newlines > 1)
+                    {
+                        sb.Append('\n', newlines - 1);
+                    }
+                    else
+                    {
+                        sb.Append(' ');
+                    }
+                    MultiLineScalar = true;
+                }
+
+                // Add the character
+                else
+                {
+                    sb.Append((char)ch);
+                }
+            }
+
+            // Return the result
+            SetToken(TokenType.Scalar, indent, sb.ToString());
+        }
+
+        private void ReadDoubleQuoteScalar()
+        {
+            // In double-quote scalars, line breaks are converted to spaces.
+            // Leading and trailing spaces on line breaks are stripped.
+            // Double-quote scalars use backslash escaping. Escaped
+            // newlines still participate in line folding. (Strange but true.)
             int indent = m_lineIndent;
             char quoteChar = ChRead();
             Debug.Assert(quoteChar == '"' || quoteChar == '\'');
@@ -807,26 +888,19 @@ namespace YamlInternal
                     ReportError("Unexpected end of file.");
                     break;
                 }
-                if (doubleQuote && ch == '\"') break; // End quote
+                if (ch == '"') break; // End quote
 
                 if (doubleQuote && ch == '\\')
                 {
-                    sb.Append(ReadEscape());
-                }
-
-                else if (!doubleQuote && ch == '\'')
-                {
-                    // Doubled single-quotes converted to one single-quote.
-                    if (ChPeek() == '\'')
+                    // Escaped newline is simply ignored including any leading space on the next line
+                    if (ChPeek() == '\n')
                     {
                         ChRead();
-                        sb.Append('\'');
+                        SkipInlineWhitespace();
                     }
-
-                    // Otherwise, the whole scalar has been read
                     else
                     {
-                        break;
+                        sb.Append(ReadEscape());
                     }
                 }
 
@@ -1275,7 +1349,6 @@ namespace YamlInternal
                 case '\a':
                 case '\b':
                 case '\t':
-                case '\n':
                 case '\v':
                 case '\f':
                 case '\r':
