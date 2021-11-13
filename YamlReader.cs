@@ -970,6 +970,11 @@ namespace YamlInternal
                 ch = ChRead();
             }
 
+            if (ch == '#')
+            {
+                ReportError("Space required before comment.");
+            }
+
             while (IsSpaceOrTab(ch))
             {
                 ch = ChRead();
