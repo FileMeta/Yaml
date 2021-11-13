@@ -867,6 +867,11 @@ namespace YamlInternal
 
             // Return the result
             SetToken(TokenType.Scalar, indent, sb.ToString());
+
+            if (ChPeek() == '#')
+            {
+                ReportError("Space required before comment.");
+            }
         }
 
         private void ReadDoubleQuoteScalar()
@@ -936,6 +941,11 @@ namespace YamlInternal
 
             // Return the result
             SetToken(TokenType.Scalar, indent, sb.ToString());
+
+            if (ChPeek() == '#')
+            {
+                ReportError("Space required before comment.");
+            }
         }
 
         private void ReadBlockScalar()
