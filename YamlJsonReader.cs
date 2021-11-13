@@ -182,6 +182,11 @@ namespace FileMeta.Yaml
                             && m_lexer.TokenIndent == m_currentIndent)
                         {
                             // Continue the sequence
+                            // Insert an empty value if needed
+                            if (m_stackTop.IndicatorCount > m_stackTop.ValueCount)
+                            {
+                                EnqueueToken(JsonToken.String, string.Empty);
+                            }
                         }
                         // Start a new sequence if appropriate
                         else if (m_lexer.TokenIndent >= m_currentIndent)
@@ -192,6 +197,7 @@ namespace FileMeta.Yaml
                         {
                             m_lexer.ReportError("Unexpected sequence indicator '-'.");
                         }
+                        ++m_stackTop.IndicatorCount;
                         m_lexer.MoveNext(false);
                         break;
 
@@ -288,11 +294,10 @@ namespace FileMeta.Yaml
 
         void StartElement(int indent, JsonToken token)
         {
-            //Debug.Assert(indent > m_currentIndent);
             Debug.Assert(token == JsonToken.StartObject || token == JsonToken.StartArray);
+            EnqueueToken(token);
             Push((token == JsonToken.StartObject) ? StackEntryType.Mapping : StackEntryType.Sequence,
                 m_currentIndent);
-            EnqueueToken(token);
             m_currentIndent = indent;
         }
 
@@ -326,6 +331,17 @@ namespace FileMeta.Yaml
 
         void EnqueueToken(JsonToken token, string value = null, bool updateIndex = true)
         {
+            if (StackTopType == StackEntryType.Sequence
+                && (token == JsonToken.String || token == JsonToken.StartObject || token == JsonToken.StartArray))
+            {
+                if (m_stackTop.IndicatorCount <= m_stackTop.ValueCount)
+                {
+                    m_lexer.ReportError("Expected sequence indicator '-'.");
+                    ++m_stackTop.IndicatorCount;
+                }
+                ++m_stackTop.ValueCount;
+            }
+
             m_tokenQueue.Enqueue(new QueueEntry
             {
                 Token = token,
@@ -377,6 +393,8 @@ namespace FileMeta.Yaml
         {
             public StackEntryType Type; // Type of containing entity
             public int PrevIndent;      // Indentation level of the containing entity (not of its members)
+            public int IndicatorCount;  // Number of SequenceIndicators found
+            public int ValueCount;      // Number of values stored
         }
 
         #endregion Stack
