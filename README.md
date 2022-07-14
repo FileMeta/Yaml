@@ -1,4 +1,7 @@
 # FileMeta.Yaml
+
+*I have abandoned this project. It passes about 80% of the YAML validation tests for the features it implements. See the Limitations section for the features that I deliberately didn't implement and the philosophy behind that. If you want to pick up the project and carry it forward you are welcome to do so. It is under a BSD 3-clause open license. I recommend creating your own fork. If you get it to a point where you like the result, please contact me and I'll put a link here to your continuation. I have many, complicated, reasons for abanding this but the main one is that I switched to a different data format for a project that was originally to use YAML.*
+
 A simple [YAML](http://www.yaml.org/) scanner/reader/parser.
 
 FileMeta.Yaml is a YAML reader written in C# that can manifest the following interfaces:
@@ -50,9 +53,6 @@ The following limitations may be removed in the future if people advocate for th
 While YAML starts out simple, some of the constructs, like Complex Mapping Keys, Compound Values, and embedded JSON can make it more challenging. Humans may not understand what's going on and parsers have to produce a complicated DOM to represent the document.
 
 These limitations are intended to keep YAML simple and intuitive for users who have never read the documentation.
-
-## Using FileMeta.Yaml MicroYaml parser
-(Sample code pending)
 
 ## Extended YAML Sample
 This sample demonstrates most MicroYaml features.
